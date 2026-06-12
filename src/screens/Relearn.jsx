@@ -9,6 +9,7 @@
 //
 //  ※ タイムアタック・バトル・単元テストなど、全モードの誤答が貯まる。
 // ============================================================
+import { useState } from "react";
 import Header from "../components/Header.jsx";
 import MathText from "../components/MathText.jsx";
 import { findUnitById, findChapterByUnitId } from "../data/index.js";
@@ -17,6 +18,13 @@ import { videoUrlFor } from "../data/videoLinks.js";
 const GRADE_LABEL = { 1: "中1", 2: "中2", 3: "中3" };
 
 export default function Relearn({ player, mistakes = [], onRelearn, onRemove, onBack }) {
+  // ★4 間違い＝宝：直して「できた！」にしたら、たからもの演出（ごほうび＝コイン）
+  const [treasure, setTreasure] = useState(null); // { reward }
+  function fixMistake(id) {
+    const reward = onRemove(id); // App.removeNote が報酬コインを返す
+    setTreasure({ reward: reward || 0 });
+    setTimeout(() => setTreasure(null), 1400);
+  }
   // 間違いを単元ごとにまとめる（単元が分からないものは「その他」へ）
   const groups = {};
   for (const m of mistakes) {
@@ -27,10 +35,20 @@ export default function Relearn({ player, mistakes = [], onRelearn, onRemove, on
 
   return (
     <div className="app">
+      {/* ★4 たからもの演出（ミスを直したら出る） */}
+      {treasure && (
+        <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, pointerEvents: "none" }}>
+          <div className="glass" style={{ padding: "20px 26px", textAlign: "center", animation: "pop .3s ease" }}>
+            <div style={{ fontSize: 52 }}>🎁</div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#fde047" }}>たからもの GET！</div>
+            <div style={{ fontSize: 13, color: "#fff", marginTop: 4 }}>まちがいを直せたね！ 💰+{treasure.reward}</div>
+          </div>
+        </div>
+      )}
       <Header player={player} back="ホーム" onBack={onBack} />
       <div className="content">
         <div className="pg-ttl">📖 学び直しモード</div>
-        <div className="pg-sub">間違えた問題を、動画で学び直して、もう一度といてみよう（1問 +15XP・15問ごとに💎+1）</div>
+        <div className="pg-sub">まちがいは<b style={{ color: "#fde047" }}>たからもの</b>。直すと一番えらい！（1問 +15XP・15問ごとに💎+1・直すと💰+5）</div>
 
         {mistakes.length === 0 ? (
           <div className="glass">
@@ -88,7 +106,7 @@ export default function Relearn({ player, mistakes = [], onRelearn, onRemove, on
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", wordBreak: "break-word" }}><MathText>{m.q}</MathText></div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,.55)" }}>正解: <strong style={{ color: "#4ade80" }}><MathText>{m.ans}</MathText></strong></div>
                     </div>
-                    <button data-sfx="none" onClick={() => onRemove(m.id)} title="この問題を一覧から消す"
+                    <button data-sfx="none" onClick={() => fixMistake(m.id)} title="直せた！この問題を一覧から消す"
                       style={{ flexShrink: 0, width: 76, padding: "6px 6px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 800, lineHeight: 1.3,
                         color: "#86efac", border: "1px solid rgba(74,222,128,.4)", background: "rgba(74,222,128,.12)" }}>
                       ✓ できる<br />ようになった

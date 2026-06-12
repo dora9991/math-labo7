@@ -10,6 +10,7 @@ import Header from "../components/Header.jsx";
 import CharBubble, { voice } from "../components/CharBubble.jsx";
 import DrawPad from "../components/DrawPad.jsx";
 import MathText from "../components/MathText.jsx";
+import QuestionText from "../components/QuestionText.jsx";
 import * as sfx from "../audio/sfx.js";
 import { genProblem, makeChoices } from "../engine/generator.js";
 import { isCorrect } from "../engine/scoring.js";
@@ -186,7 +187,7 @@ export default function StepUpSimple({ player, units = [], title = "ステップ
         <div style={{ margin: "10px 0 6px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.55)" }}>いま：{unit.name}</div>
 
         <div className="glass" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.5, marginBottom: 16 }}><MathText>{problem.q}</MathText></div>
+          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.5, marginBottom: 16 }}><QuestionText text={problem.q} furigana={!!player.furigana} readAloud={!!player.readAloud} /></div>
           <div style={{ position: "relative" }}>
             {showRing && <div className="correct-ring show" />}
             <div className={"choices-grid" + (shakeAns ? " answer-shake" : "")}>
@@ -206,7 +207,7 @@ export default function StepUpSimple({ player, units = [], title = "ステップ
 
           {fb && (
             <>
-              {!fb.ok && <div style={{ fontSize: 16, fontWeight: 900, margin: "14px 0 6px", color: "#f87171" }}>△ おしい</div>}
+              {!fb.ok && <div style={{ fontSize: 16, fontWeight: 900, margin: "14px 0 6px", color: "#fb923c" }}>おしい！ あと少し ✨</div>}
               {!fb.ok && <div style={{ fontSize: 14, marginBottom: 6 }}>正解：<strong style={{ color: "#4ade80" }}><MathText>{fb.ans}</MathText></strong></div>}
               {fb.ok ? (
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>つぎの問題へ…</div>

@@ -13,6 +13,7 @@ import Header from "../components/Header.jsx";
 import Stars from "../components/Stars.jsx";
 import { BigWord } from "../components/Decorations.jsx";
 import MathText from "../components/MathText.jsx";
+import QuestionText from "../components/QuestionText.jsx";
 import MonsterSprite from "../components/MonsterSprite.jsx";
 import HeroImg from "../components/HeroImg.jsx";
 import { heroImageFor } from "../data/heroes.js";
@@ -453,7 +454,7 @@ export default function TimeAttack({ player, chapter, unit, level, onComplete, o
 
         <div className="qcard">
           <span className="q-pill">{unit.name}</span>
-          <div className="q-text"><MathText>{q.q}</MathText></div>
+          <div className="q-text"><QuestionText text={q.q} furigana={!!player.furigana} readAloud={false} /></div>
           <div className={"choices-grid" + (shakeAns ? " answer-shake" : "")}>
             {choices.map((c, i) => {
               const isAns = ansEq(c, q);

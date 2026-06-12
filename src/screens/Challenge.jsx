@@ -46,6 +46,8 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
   const [showPad, setShowPad] = useState(false);
   const [padKey, setPadKey] = useState(0);
   const [showStart, setShowStart] = useState(false); // スタート時の START! 演出
+  const [practice, setPractice] = useState(false);   // ★3 練習王：まちがえても終わらない
+  const [wrongFb, setWrongFb] = useState(null);       // 練習モードで誤答時に正解を見せる { ans }
 
   const recentRef = useRef([]);
   const startRef = useRef(0);
@@ -95,8 +97,14 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
       let t5 = time5;
       if (ns === GOAL) { t5 = performance.now() - startRef.current; setTime5(t5); }
       nextProblem();
+    } else if (practice) {
+      // ★3 練習王：終わらない。正解を見せて、連続をリセットして次へ。
+      sfx.wrong();
+      setWrongFb({ ans: cur.ans });
+      setStreak(0);
+      setTimeout(() => { setWrongFb(null); nextProblem(); }, 1300);
     } else {
-      // 1問でも間違えたら終了
+      // 本番：1問でも間違えたら終了
       sfx.wrong();
       end(streak, time5);
     }
@@ -168,7 +176,7 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
       <div className="app">
         {showStart && <BigWord text="START!" color="#a855f7" onDone={() => setShowStart(false)} />}
         {flash && <div className="correct-flash show" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 55 }} />}
-        <Header player={player} back="やめる" onBack={() => end(streak, time5)} />
+        <Header player={player} back="やめる" onBack={() => (practice ? onHome?.() : end(streak, time5))} />
         <div className="content">
           {/* ステータス：連続正解とタイム */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -213,8 +221,13 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
             >
               答える →
             </button>
+            {wrongFb && (
+              <div style={{ marginTop: 12, textAlign: "center", fontSize: 14, fontWeight: 800, color: "#fb923c" }}>
+                おしい！ 正解は <strong style={{ color: "#4ade80" }}><MathText>{wrongFb.ans}</MathText></strong>。次もいこう✨
+              </div>
+            )}
             <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", textAlign: "center", marginTop: 8 }}>
-              ※ 1問でも間違えると終了。あせらず正確に！
+              {practice ? "※ 練習モード：まちがえても終わらないよ。どんどん解こう！" : "※ 1問でも間違えると終了。あせらず正確に！"}
             </div>
           </div>
 
@@ -266,12 +279,28 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
           ・<b style={{ color: "#d8b4fe" }}>章をクリアすると、このワールドのバトル攻撃力が永続アップ⚔️</b>
         </div>
 
+        {/* ★3 練習王：まちがえても終わらないモードの切り替え */}
+        <button onClick={() => setPractice((v) => !v)} data-sfx="none"
+          style={{
+            width: "100%", marginTop: 12, marginBottom: 4, padding: "11px 14px", borderRadius: 12, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+            border: practice ? "2px solid #22c55e" : "1px solid rgba(255,255,255,.18)",
+            background: practice ? "rgba(34,197,94,.16)" : "rgba(255,255,255,.05)", color: "#fff",
+          }}>
+          <span style={{ fontSize: 26 }}>{practice ? "🛡️" : "🔥"}</span>
+          <span style={{ flex: 1 }}>
+            <span style={{ fontSize: 14, fontWeight: 900, display: "block" }}>{practice ? "練習王（まちがえてもOK）" : "本番モード（1ミスで終了）"}</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,.65)" }}>タップで切りかえ。{practice ? "終わらずに何度でも練習できる" : "自己ベストに挑戦（記録される）"}</span>
+          </span>
+        </button>
+
         <button onClick={start} data-sfx="none"
           style={{
             width: "100%", marginTop: 6, padding: "15px", borderRadius: 14, border: "none", cursor: "pointer",
-            fontSize: 18, fontWeight: 900, color: "#fff", background: "linear-gradient(135deg,#a855f7,#7c3aed)",
+            fontSize: 18, fontWeight: 900, color: "#fff",
+            background: practice ? "linear-gradient(135deg,#22c55e,#10b981)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
           }}>
-          ▶ スタート
+          ▶ {practice ? "練習スタート" : "スタート"}
         </button>
       </div>
     </div>

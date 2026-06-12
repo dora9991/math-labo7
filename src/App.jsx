@@ -285,9 +285,14 @@ export default function App() {
     addXp(xp);
   }
 
+  // ★4 間違い＝宝：直して「できた！」にしたら、ごほうび（たからもの＝コイン）。
+  //   まちがいは罰ではなく、直すのが一番えらい——という体験にする。
+  const MISTAKE_FIX_REWARD = 5; // コイン
   function removeNote(id) {
     const mistakes = store.removeMistake(id);
+    updatePlayer((p) => ({ ...p, coins: (p.coins ?? 0) + MISTAKE_FIX_REWARD }));
     setData((d) => ({ ...d, mistakes }));
+    return MISTAKE_FIX_REWARD;
   }
 
   // バトルで間違えた問題を「学び直しモード」に記録（同じ問題文は重複させない・最大40件）
@@ -758,7 +763,7 @@ export default function App() {
     if (screen === "start") { bgm.stop(); return; }
     if (screen === "title") { bgm.play("op"); return; }
     if (screen === "timeAttack") { bgm.play("timeattack"); return; }
-    if (screen === "slow") { bgm.play("slow"); return; }
+    if (screen === "slow" || screen === "anshin") { bgm.play("slow"); return; }
     if (screen === "stepUp") { bgm.play("slow"); return; }
     if (screen === "relearnPractice") { bgm.play("slow"); return; } // 学び直しの練習はステップアップのBGM
     if (screen === "challenge" || screen === "calcKingPick") { bgm.play("unittest"); return; } // 計算王への道は単元テストの音源
@@ -828,7 +833,7 @@ export default function App() {
 
   // 遊び方（ヘルプ）
   if (screen === "howto") {
-    return <HowTo player={data.player} onExport={downloadBackup} onImport={restoreBackup} onBack={() => setScreen("home")} />;
+    return <HowTo player={data.player} onExport={downloadBackup} onImport={restoreBackup} onSetting={(k, v) => updatePlayer((p) => ({ ...p, [k]: v }))} onBack={() => setScreen("home")} />;
   }
 
   // キャラクター設定
@@ -846,7 +851,7 @@ export default function App() {
       <ChapterSelect
         player={data.player}
         mode={mode}
-        chapters={mode === "timeAttack" ? chaptersForGrade(grade) : CHAPTERS}
+        chapters={(mode === "timeAttack" || mode === "anshin") ? chaptersForGrade(grade) : CHAPTERS}
         onStart={(chapter, unit, level) => {
           setSel({ chapter, unit, level });
           setScreen(mode); // "timeAttack" など
@@ -911,6 +916,22 @@ export default function App() {
         chapter={sel.chapter}
         unit={sel.unit}
         level={sel.level}
+        onComplete={saveSlowResult}
+        onBackToMap={() => setScreen("chapter")}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
+  // あんしんモード（★1/★2/★6）：タイマーなし・失敗なし・最初はかんたん・3段階ヒント
+  if (screen === "anshin" && sel.unit) {
+    return (
+      <SlowMode
+        player={data.player}
+        chapter={sel.chapter}
+        unit={sel.unit}
+        level={sel.level}
+        anshin
         onComplete={saveSlowResult}
         onBackToMap={() => setScreen("chapter")}
         onHome={() => setScreen("home")}
@@ -1115,6 +1136,7 @@ export default function App() {
       mistakeCount={data.mistakes.length}
       grade={grade}
       onSetGrade={setWorld}
+      onAnshin={() => goChapter("anshin")}
       onTimeAttack={() => goChapter("timeAttack")}
       onChallenge={() => setScreen("calcKingPick")}
       onBattle={() => setScreen("battle")}

@@ -21,13 +21,58 @@ const Mode = ({ emoji, name, children }) => (
   </div>
 );
 
-export default function HowTo({ player, onExport, onImport, onBack }) {
+function Toggle({ on, onChange, label, desc }) {
+  return (
+    <button
+      onClick={() => onChange(!on)} data-sfx="none"
+      style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+        background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12,
+        padding: "11px 13px", cursor: "pointer", marginBottom: 8,
+      }}
+    >
+      <span style={{ flex: 1 }}>
+        <span style={{ fontSize: 14, fontWeight: 900, color: "#fff", display: "block" }}>{label}</span>
+        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>{desc}</span>
+      </span>
+      <span style={{
+        width: 50, height: 28, borderRadius: 999, flexShrink: 0, position: "relative",
+        background: on ? "#22c55e" : "rgba(255,255,255,.18)", transition: "background .15s",
+      }}>
+        <span style={{
+          position: "absolute", top: 3, left: on ? 25 : 3, width: 22, height: 22, borderRadius: "50%",
+          background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.3)",
+        }} />
+      </span>
+    </button>
+  );
+}
+
+export default function HowTo({ player, onExport, onImport, onSetting, onBack }) {
   return (
     <div className="app">
       <Header player={player} back="ホーム" onBack={onBack} />
       <div className="content">
         <div className="pg-ttl">📖 遊び方</div>
         <div className="pg-sub">学習の流れ・モードのこと・育て方のこと</div>
+
+        {/* ★5 よみあげ・ふりがな（読むのが苦手な人向け。ON/OFFできる） */}
+        {onSetting && (
+          <Section icon="🔊" title="よみあげ・ふりがな（読むのが苦手な人へ）" color="#22c55e">
+            <div style={{ marginBottom: 8 }}>
+              問題が読みにくい人は、ここをONにすると<b style={{ color: "#fff" }}>声で読んでくれたり、ふりがな</b>がつきます。
+              いらない人はOFFのままでOK。問題の <b style={{ color: "#fff" }}>🔊</b> ボタンでもいつでも聞けます。
+            </div>
+            <Toggle
+              on={!!player.readAloud} onChange={(v) => onSetting("readAloud", v)}
+              label="🔊 よみあげ（自動）" desc="新しい問題が出たら、声で読んでくれる"
+            />
+            <Toggle
+              on={!!player.furigana} onChange={(v) => onSetting("furigana", v)}
+              label="🈂 ふりがな" desc="むずかしい漢字によみがなをつける"
+            />
+          </Section>
+        )}
 
         <Section icon="💛" title="このゲームの思い" color="#f472b6">
           数学は「こわいもの」じゃなくて、解けると気持ちいいパズル。<br />

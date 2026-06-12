@@ -103,6 +103,8 @@ export function initialPlayerState(studentId) {
     avatar: { type: "hero", id: "hero10" }, // 初期キャラ＝シンプルな男の子（heroes.js STARTER_HERO_ID）
     ownedHeroes: ["hero10"], // 購入で解放したヒーローid。初期は STARTER のみ（他は💰500で購入）
     name: "",          // プレイヤー名（任意）
+    readAloud: false,  // ★5 問題文を自動で読み上げる（読むのが苦手な人向け・既定OFF）
+    furigana: false,   // ★5 数学用語にふりがなを付ける（既定OFF）
     unitMastery: {},   // { unitId: { pt:0〜100, streak:連続正解数, ok:bool } } 小単元の習得確認（4連続正解でOK）
     partners: {},      // なかま（エサで仲間にしたモンスター）{ monsterId: { lv } }。コイン/クリスタルで育成
     party: [],         // ストック（編成）monsterId配列・最大4体。先頭(activePartner)だけバトル参戦
@@ -142,6 +144,8 @@ export function normalizePlayerState(p) {
     : { owned: {}, weapon: null, armor: null };
   out.seenMonsters = p.seenMonsters || {};
   out.unitMastery = p.unitMastery || {};
+  out.readAloud = !!p.readAloud; // ★5 設定（既定OFF）
+  out.furigana = !!p.furigana;   // ★5 設定（既定OFF）
   out.crystals = Number.isFinite(p.crystals) ? p.crystals : 0;
   out.relearnSolved = Number.isFinite(p.relearnSolved) ? p.relearnSolved : 0;
   out.partners = (p.partners && typeof p.partners === "object") ? p.partners : {};

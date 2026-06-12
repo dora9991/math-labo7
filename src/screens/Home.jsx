@@ -14,7 +14,7 @@ const itemName = (id) => findItem(id)?.name ?? "";
 const GRADE_LABEL = { 1: "中1", 2: "中2", 3: "中3" };
 const GRADE_COLOR = { 1: "#818cf8", 2: "#f43f5e", 3: "#fbbf24" }; // 中1=藍 中2=赤 中3=黄
 
-export default function Home({ player, records, mistakeCount, grade = 1, onSetGrade, onTimeAttack, onChallenge, onBattle, onRelearn, onClinic, onStartGolden, onShop, onSkill, onCollection, onPartners, onDetail, onHowTo, onCharacter }) {
+export default function Home({ player, records, mistakeCount, grade = 1, onSetGrade, onAnshin, onTimeAttack, onChallenge, onBattle, onRelearn, onClinic, onStartGolden, onShop, onSkill, onCollection, onPartners, onDetail, onHowTo, onCharacter }) {
   const availGrades = gradesWithChapters();
   const [msg] = useState(() => voice("open"));
   const greeting = player.name ? `${player.name}、${msg}` : msg;
@@ -106,6 +106,24 @@ export default function Home({ player, records, mistakeCount, grade = 1, onSetGr
             );
           })}
         </div>
+
+        {/* ★ あんしんモード（タイマーなし・まちがえても大丈夫）＝苦手な子の入口。一番上に大きく置く。 */}
+        {onAnshin && (
+          <button
+            onClick={onAnshin}
+            style={{
+              width: "100%", marginBottom: 12, padding: "14px 16px", borderRadius: 16, border: "2px solid rgba(255,255,255,.25)",
+              background: "linear-gradient(135deg,#22c55e,#10b981)", color: "#fff", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 12, textAlign: "left", boxShadow: "0 6px 18px rgba(16,185,129,.35)",
+            }}
+          >
+            <span style={{ fontSize: 38, lineHeight: 1 }}>🛟</span>
+            <span>
+              <span style={{ fontSize: 17, fontWeight: 900, display: "block" }}>あんしんモード</span>
+              <span style={{ fontSize: 12, fontWeight: 700, opacity: .92 }}>タイマーなし・まちがえても大丈夫。まずはここから！</span>
+            </span>
+          </button>
+        )}
 
         {/* 3段グリッド：①タイムアタック/学び直し ②バトル/計算王 ③ショップ/スキル */}
         <div className="mode-grid">
