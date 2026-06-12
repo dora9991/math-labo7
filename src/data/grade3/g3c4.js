@@ -2,7 +2,17 @@
 // g3c4 — 中3「関数 y=ax²」（ワークブックから自動取り込み・4択）
 // 各問題は固定の問題文・正解・選択肢を持つ（式・数値とも4択で文字列一致採点）。
 // ============================================================
-const sp = (id, q, ans, choices) => ({ id, build: () => ({ q, ans, choices }), skill: null });
+// 単元ごとの段階ヒント（h1=考え方の方針／h2=もう一歩ふみこんだ手助け）
+const H = {
+  g3c4u1: { h1: "y=ax² に通る点の x,y を代入して a を求める", h2: "x=1,y=6 なら 6=a×1² → a=6 → y=6x²" },
+  g3c4u2: { h1: "y=ax²のグラフは放物線。変域が x=0 をまたぐと最小はy=0", h2: "端の値を代入して y を計算。2≦x≦5 なら x=2 と x=5 の y を比べる" },
+  g3c4u3: { h1: "変化の割合＝yの増加量÷xの増加量", h2: "両端のyを求めて差をとり、xの差で割る。y=ax²では a(p+q) でも出せる" },
+  g3c4u4: { h1: "問題の関係を y=ax² と読みとり、聞かれた値を代入しよう", h2: "x に時間などを入れて y を計算。単位もそろえて答える" },
+};
+const sp = (id, q, ans, choices) => {
+  const h = H[id.replace(/p\d+$/, "")] || {};
+  return { id, build: () => ({ q, ans, choices, h1: h.h1, h2: h.h2 }), skill: null };
+};
 const lv = (arr) => ({ easy: arr, standard: arr, advanced: arr });
 
 export const chapter = {

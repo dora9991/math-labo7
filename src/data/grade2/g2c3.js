@@ -2,7 +2,16 @@
 // g2c3 — 中2「1次関数」（ワークブックから自動取り込み・4択）
 // 各問題は固定の問題文・正解・選択肢を持つ（式・数値とも4択で文字列一致採点）。
 // ============================================================
-const sp = (id, q, ans, choices) => ({ id, build: () => ({ q, ans, choices }), skill: null });
+// 単元ごとの段階ヒント（h1=考え方の方針／h2=もう一歩ふみこんだ手助け）
+const H = {
+  g2c3u1: { h1: "増加量＝(あとの値)−(はじめの値)。まずxの増加量を出そう", h2: "変化の割合＝yの増加量÷xの増加量。一次関数では傾きと同じ" },
+  g2c3u2: { h1: "y=ax+b のaが傾き、bが切片(x=0のときのy)", h2: "通る点のx,yを代入してa,bを求める。傾きは(yの増加量)÷(xの増加量)" },
+  g2c3u3: { h1: "ことばの式を y=ax+b の形に。はじめの量が切片、1あたりの変化が傾き", h2: "交点は2つの式を連立して解く。変域は端の値を代入して調べる" },
+};
+const sp = (id, q, ans, choices) => {
+  const h = H[id.replace(/p\d+$/, "")] || {};
+  return { id, build: () => ({ q, ans, choices, h1: h.h1, h2: h.h2 }), skill: null };
+};
 const lv = (arr) => ({ easy: arr, standard: arr, advanced: arr });
 
 export const chapter = {

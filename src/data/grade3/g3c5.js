@@ -2,7 +2,16 @@
 // g3c5 — 中3「相似な図形」（ワークブックから自動取り込み・4択）
 // 各問題は固定の問題文・正解・選択肢を持つ（式・数値とも4択で文字列一致採点）。
 // ============================================================
-const sp = (id, q, ans, choices) => ({ id, build: () => ({ q, ans, choices }), skill: null });
+// 単元ごとの段階ヒント（h1=考え方の方針／h2=もう一歩ふみこんだ手助け）
+const H = {
+  g3c5u1: { h1: "a:b=c:d なら、外側の積＝内側の積(ad=bc)", h2: "x:3=4:2 → 2×x=3×4 → x=6" },
+  g3c5u2: { h1: "相似比が m:n なら、面積比は m²:n²、体積比は m³:n³", h2: "相似比1:4 → 面積比1:16。Aの面積を16倍する" },
+  g3c5u3: { h1: "同じ時刻の影は相似。(高さ):(影) の比はどれも等しい", h2: "棒1m:影2.5m＝木:影20m。比例式を立てて解く" },
+};
+const sp = (id, q, ans, choices) => {
+  const h = H[id.replace(/p\d+$/, "")] || {};
+  return { id, build: () => ({ q, ans, choices, h1: h.h1, h2: h.h2 }), skill: null };
+};
 const lv = (arr) => ({ easy: arr, standard: arr, advanced: arr });
 
 export const chapter = {

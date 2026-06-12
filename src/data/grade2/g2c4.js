@@ -2,7 +2,15 @@
 // g2c4 — 中2「平行と合同」（ワークブックから自動取り込み・4択）
 // 各問題は固定の問題文・正解・選択肢を持つ（式・数値とも4択で文字列一致採点）。
 // ============================================================
-const sp = (id, q, ans, choices) => ({ id, build: () => ({ q, ans, choices }), skill: null });
+// 単元ごとの段階ヒント（h1=考え方の方針／h2=もう一歩ふみこんだ手助け）
+const H = {
+  g2c4u1: { h1: "n角形の内角の和＝180°×(n−2)", h2: "七角形ならn=7。180×(7−2)を計算しよう" },
+  g2c4u2: { h1: "外角の和はどんな多角形でも360°。1つの外角＝360°÷n", h2: "1つの内角＝180°−1つの外角。外角からn(辺の数)を逆算できる" },
+};
+const sp = (id, q, ans, choices) => {
+  const h = H[id.replace(/p\d+$/, "")] || {};
+  return { id, build: () => ({ q, ans, choices, h1: h.h1, h2: h.h2 }), skill: null };
+};
 const lv = (arr) => ({ easy: arr, standard: arr, advanced: arr });
 
 export const chapter = {
