@@ -11,7 +11,7 @@ import { MONSTERS } from "../data/monsters.js";
 const GRADE_LABEL = { 1: "中1", 2: "中2", 3: "中3" };
 const KIND_LABEL = { sample: "れんしゅう", unit: "ザコ", chapterBoss: "章ボス", finalBoss: "魔王" };
 
-export default function Collection({ player, records, onBack }) {
+export default function Collection({ player, records, onPartners, onBack }) {
   // 撃破済みモンスターidの集合（バトルの勝利記録から）
   const defeated = new Set(
     (records || [])
@@ -30,6 +30,12 @@ export default function Collection({ player, records, onBack }) {
       <div className="content">
         <div className="pg-ttl">📖 モンスター図鑑</div>
         <div className="pg-sub">バトルで倒したモンスターがここに集まります</div>
+
+        {onPartners && (
+          <button className="nb-btn" onClick={onPartners} style={{ marginBottom: 10, background: "linear-gradient(135deg,#f59e0b,#f472b6)", color: "#fff" }}>
+            🐾 なかまを育てる（おともにしてバトルへ）→
+          </button>
+        )}
 
         {/* 収集率 */}
         <div className="glass" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>

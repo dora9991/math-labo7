@@ -8,6 +8,7 @@
 import { genProblem, makeChoices } from "./generator.js";
 import { findUnit, findChapterById } from "../data/index.js";
 import { gearBonuses } from "./gear.js";
+import { companionBonus } from "./partners.js";
 import { pick } from "./rng.js";
 
 // ── プレイヤーの成長カーブ（Lv1〜99）──────────────────
@@ -71,15 +72,18 @@ export function calcKingAtkBonus(player) {
   return Math.min(CALC_KING_ATK_CAP, calcKingClearedInWorld(player, world) * CALC_KING_ATK_PER_UNIT);
 }
 
-/** 装備（ガチャ）＋計算王クリアを合算したバトルの上昇率 {atkPct,hpPct,gearAtkPct,calcAtkPct} */
+/** 装備（ガチャ）＋計算王クリア＋おともを合算したバトルの上昇率 */
 export function battleBonuses(player) {
   const g = gearBonuses(player);
   const calc = calcKingAtkBonus(player);
+  const comp = companionBonus(player); // 装備中おともモンスターのレベル比例ボーナス
   return {
-    atkPct: (g.atkPct || 0) + calc,
-    hpPct: g.hpPct || 0,
-    gearAtkPct: g.atkPct || 0, // 内訳（表示用）
-    calcAtkPct: calc,          // 内訳（表示用）
+    atkPct: (g.atkPct || 0) + calc + (comp.atkPct || 0),
+    hpPct: (g.hpPct || 0) + (comp.hpPct || 0),
+    gearAtkPct: g.atkPct || 0,   // 内訳（表示用）
+    calcAtkPct: calc,            // 内訳（表示用）
+    compAtkPct: comp.atkPct || 0,// 内訳（表示用）
+    compHpPct: comp.hpPct || 0,  // 内訳（表示用）
   };
 }
 
@@ -231,10 +235,11 @@ export function rollSkillGacha(rand = Math.random) {
 }
 
 /**
- * まとめ引き（11連）を引く（id配列を返す）。最低1つ R 以上を保証する。
+ * まとめ引き（既定11連）を引く（id配列を返す）。最低1つ R 以上を保証する。
+ * pulls を渡すと回数を変えられる（金曜の「ガチャデー」は12連など）。
  */
-export function rollSkillGachaMulti(rand = Math.random) {
-  const n = SKILL_GACHA_MULTI_N;
+export function rollSkillGachaMulti(rand = Math.random, pulls = SKILL_GACHA_MULTI_N) {
+  const n = Math.max(1, pulls);
   const ids = Array.from({ length: n }, () => rollSkillGacha(rand));
   const hasRPlus = ids.some((id) => {
     const r = findSkill(id)?.rarity;

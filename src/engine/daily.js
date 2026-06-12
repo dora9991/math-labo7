@@ -74,3 +74,39 @@ export function goldenEndedToday(player = {}, nowMs, today) {
   const g = player.golden;
   return !!(g && g.date === today && typeof g.startMs === "number" && nowMs - g.startMs >= GOLDEN_MS);
 }
+
+// ============================================================
+// 曜日イベント（毎週その曜日に自動発生・ログイン不要）
+//  getDay(): 0=日 1=月 2=火 3=水 4=木 5=金 6=土
+//   月: 経験値1.5倍 / 水: お金2倍 / 金: スキルガチャ11連→12連
+//   火・木・土・日にも軽いイベントを置いて「毎日の楽しみ」にする。
+//  値（倍率・ボーナス）は調整しやすいよう全てここに集約。
+// ============================================================
+export const WEEKLY_EVENTS = {
+  0: { id: "crystal", label: "クリスタルデー", icon: "💎", color: "#67e8f9", desc: "バトル撃破のクリスタルが2倍！", crystalMult: 2 },
+  1: { id: "xp",      label: "経験値1.5倍デー", icon: "⭐", color: "#fbbf24", desc: "もらえる経験値が1.5倍！", xpMult: 1.5 },
+  2: { id: "relearn", label: "学び直しデー",     icon: "📖", color: "#34d399", desc: "学び直しの経験値が2倍！", relearnMult: 2 },
+  3: { id: "coin",    label: "お金2倍デー",       icon: "💰", color: "#f59e0b", desc: "もらえるコインが2倍！", coinMult: 2 },
+  4: { id: "calc",    label: "計算王デー",        icon: "🧮", color: "#a78bfa", desc: "計算王の経験値が1.5倍！", calcMult: 1.5 },
+  5: { id: "gacha",   label: "ガチャ大盤振る舞いデー", icon: "🎁", color: "#f472b6", desc: "スキルガチャ11連が12連に！", gachaBonus: 1 },
+  6: { id: "ta",      label: "タイムアタックデー", icon: "⏱️", color: "#38bdf8", desc: "タイムアタックのコインが2倍！", taCoinMult: 2 },
+};
+
+/** 曜日（0=日〜6=土）。date 省略時は今日。 */
+export function weekdayOf(date) {
+  return (date ? new Date(date) : new Date()).getDay();
+}
+
+/** 今日（または指定日）の曜日イベント定義。無ければ null。 */
+export function todayEvent(date) {
+  return WEEKLY_EVENTS[weekdayOf(date)] || null;
+}
+
+// 各種倍率・ボーナスの取得（イベントが無い日は等倍/0）
+export function eventXpMult(date)      { return todayEvent(date)?.xpMult || 1; }
+export function eventCoinMult(date)    { return todayEvent(date)?.coinMult || 1; }
+export function eventCrystalMult(date) { return todayEvent(date)?.crystalMult || 1; }
+export function eventRelearnMult(date) { return todayEvent(date)?.relearnMult || 1; }
+export function eventCalcMult(date)    { return todayEvent(date)?.calcMult || 1; }
+export function eventTaCoinMult(date)  { return todayEvent(date)?.taCoinMult || 1; }
+export function eventGachaBonus(date)  { return todayEvent(date)?.gachaBonus || 0; }

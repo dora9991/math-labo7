@@ -425,3 +425,8 @@ for (const m of MONSTERS) {
     m.art;
   m.imgHue = (m.kind === "finalBoss" || m.kind === "sample") ? 0 : hueFromId(m.id);
 }
+
+/** id からモンスター定義を引く（なかま育成・図鑑などで使用） */
+export function findMonster(id) {
+  return MONSTERS.find((m) => m.id === id) || null;
+}

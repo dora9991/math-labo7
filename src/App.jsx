@@ -16,7 +16,7 @@ import * as sfx from "./audio/sfx.js";
 import StartScreen from "./screens/StartScreen.jsx";
 import Transfer from "./screens/Transfer.jsx";
 import LoginBonusOverlay from "./components/LoginBonusOverlay.jsx";
-import { computeLogin, canClaimLogin, goldenMultiplier } from "./engine/daily.js";
+import { computeLogin, canClaimLogin, goldenMultiplier, eventXpMult, eventCoinMult, eventCrystalMult, eventRelearnMult, eventCalcMult, eventTaCoinMult, eventGachaBonus } from "./engine/daily.js";
 import TitleScreen from "./screens/TitleScreen.jsx";
 import AudioToggle from "./components/AudioToggle.jsx";
 import LevelUpOverlay from "./components/LevelUpOverlay.jsx";
@@ -45,7 +45,9 @@ import Clinic from "./screens/Clinic.jsx";
 import Collection from "./screens/Collection.jsx";
 import { findItem, treatCost } from "./engine/items.js";
 import { getPlayerBattleStats, BATTLE_SKILLS, battleBonuses, isCalcKingCleared, CALC_KING_CLEAR_STREAK, CALC_KING_CLEAR_CRYSTAL, findSkill, rollSkillGacha, rollSkillGachaMulti, SKILL_RARITY, SKILL_GACHA_COST_1, SKILL_GACHA_MULTI_COST, SKILL_GACHA_MULTI_N } from "./engine/battle.js";
-import { MONSTERS } from "./data/monsters.js";
+import { MONSTERS, findMonster } from "./data/monsters.js";
+import Partners from "./screens/Partners.jsx";
+import { feedCost, partnerMaxLevel } from "./engine/partners.js";
 import { foldSequence } from "./engine/unitMastery.js";
 import { isUnitMonsterUnlocked } from "./engine/unlock.js";
 import { challengeXp } from "./data/challenge.js";
@@ -119,7 +121,7 @@ export default function App() {
   function addXp(gain) {
     updatePlayer((p) => {
       const isNewDay = p.lastDate !== todayStr();
-      const g = Math.round(gain * goldenMultiplier(p, Date.now(), todayStr())); // ゴールデンタイムは×1.2
+      const g = Math.round(gain * goldenMultiplier(p, Date.now(), todayStr()) * eventXpMult()); // ゴールデンタイム×1.2・月曜は×1.5
       const w = p.world || 1;
       const wx = p.worldXp || { 1: 0, 2: 0, 3: 0 };
       const cur = wx[w] || 0;
@@ -159,6 +161,9 @@ export default function App() {
     }
     const FIRST_CLEAR_COIN = 50, MASTER_BONUS_COIN = 200;
     const bonusCoin = (firstClear ? FIRST_CLEAR_COIN : 0) + (masteredNow ? MASTER_BONUS_COIN : 0); // 達成ベースのコイン
+    // 曜日イベント：水曜=お金2倍 / 土曜=タイムアタックのコイン2倍（両方かかれば乗算）
+    const coinMult = eventCoinMult() * eventTaCoinMult();
+    const earnedCoins = Math.round((coins + bonusCoin) * coinMult);
     // クリスタル：星1つ以上＆正答率が一定以上なら毎回+1（連打・あてずっぽうは除外）
     const crystalEarned = timeAttackCrystal({ correct, wrong, stars });
     // 2) 星・くり返しXP履歴(playLog)・コイン・クリスタルを更新
@@ -167,7 +172,7 @@ export default function App() {
       const prevLog = (p.playLog && p.playLog[key]) || {};
       return {
         ...p,
-        coins: (p.coins ?? 0) + coins + bonusCoin,
+        coins: (p.coins ?? 0) + earnedCoins,
         crystals: (p.crystals ?? 0) + crystalEarned,
         stars: { ...p.stars, [key]: Math.max(p.stars[key] || 0, stars) },
         playLog: { ...(p.playLog || {}), [key]: { cleared: prevLog.cleared || stars >= 1, lastDate: todayStr() } },
@@ -218,7 +223,8 @@ export default function App() {
   function saveWeakResult({ correct, wrong, xp, coins = 0, results }) {
     const sid = data.player.studentId;
     store.addRecord(makeRecord({ studentId: sid, mode: "timeAttack", correct, wrong, xp, extra: { weak: true } }));
-    updatePlayer((p) => ({ ...p, coins: (p.coins ?? 0) + coins }));
+    const earnedCoins = Math.round(coins * eventCoinMult() * eventTaCoinMult());
+    updatePlayer((p) => ({ ...p, coins: (p.coins ?? 0) + earnedCoins }));
     const mistakes = results.filter((r) => !r.ok).slice(0, 3).map((r) =>
       makeMistake({ studentId: sid, q: r.q, ans: r.ans })
     );
@@ -325,7 +331,7 @@ export default function App() {
         crystals: (p.crystals ?? 0) + crystalUp,
       }));
       if (crystalUp) setTimeout(() => setCrystalGet({ amount: crystalUp }), 500);
-      addXp(ok ? RELEARN_XP_PER_CORRECT : 0);
+      addXp(ok ? Math.round(RELEARN_XP_PER_CORRECT * eventRelearnMult()) : 0); // 火曜=学び直しデーは2倍
     } else {
       addXp(ok ? 10 : 0); // ステップアップ／じっくりは1問10XP
     }
@@ -373,7 +379,8 @@ export default function App() {
         ...(justCleared ? { crystals: (p.crystals ?? 0) + CALC_KING_CLEAR_CRYSTAL } : {}),
       };
     });
-    const xp = Math.min(streak * 4, 120) + (newBestStreak ? 40 : 0); // 控えめ＋新記録ボーナス
+    const baseXp = Math.min(streak * 4, 120) + (newBestStreak ? 40 : 0); // 控えめ＋新記録ボーナス
+    const xp = Math.round(baseXp * eventCalcMult()); // 木曜=計算王デーは1.5倍
     store.addRecord(makeRecord({
       studentId: data.player.studentId, mode: "challenge",
       correct: streak, xp, extra: { calcKing: true, unitId, streak, time5 },
@@ -419,10 +426,11 @@ export default function App() {
   //  当たったスキルを所持に追加。既に所持していれば「被り」→ レア度に応じてコイン還元。
   //  返り値：演出用の配列 [{ id, skill, isNew, refund }]（クリスタル不足なら null）。
   function pullSkillGacha(count = 1) {
-    const isMulti = count > 1; // まとめ引き（11連）
+    const isMulti = count > 1; // まとめ引き（11連／金曜は12連）
     const cost = isMulti ? SKILL_GACHA_MULTI_COST : SKILL_GACHA_COST_1;
     if ((data.player.crystals ?? 0) < cost) return null;
-    const ids = isMulti ? rollSkillGachaMulti() : [rollSkillGacha()];
+    const pulls = SKILL_GACHA_MULTI_N + eventGachaBonus(); // 金曜=ガチャデーは+1回（11→12連）
+    const ids = isMulti ? rollSkillGachaMulti(undefined, pulls) : [rollSkillGacha()];
 
     // 既存の所持状態をもとに「新規 / 被り」を判定（連続で引いた分も加味）
     const already = new Set(data.player.ownedSkills || []);
@@ -612,11 +620,19 @@ export default function App() {
     if (win) addXp(gained);
     // 敗北：HP1（Battle側で保存済み）でメニュー画面へ戻る
     if (!win) { setBattleMonster(null); setScreen("home"); return; }
+    // 勝利：そのモンスターが「なかま」になる（未捕獲なら Lv1 で登録）。
+    //  まだ「おとも」未設定なら、最初のなかまを自動でおともにする（発見しやすく）。
+    updatePlayer((p) => {
+      const partners = { ...(p.partners || {}) };
+      const newlyCaught = !partners[battleMonster.id];
+      if (newlyCaught) partners[battleMonster.id] = { lv: 1 };
+      return { ...p, partners, companion: p.companion || (newlyCaught ? battleMonster.id : p.companion) };
+    });
     // モンスターを「初めて」たおしたら、スキルガチャ用のクリスタルを入手
     //  通常モンスター=5個・ボス（章ボス/ラスボス）=10個。再戦（撃破済み）ではもらえない。
     if (win && !alreadyCleared) {
       const isBoss = battleMonster.kind === "chapterBoss" || battleMonster.kind === "finalBoss";
-      const amount = isBoss ? 10 : 5;
+      const amount = (isBoss ? 10 : 5) * eventCrystalMult(); // 日曜=クリスタルデーは2倍
       updatePlayer((p) => ({ ...p, crystals: (p.crystals ?? 0) + amount }));
       setTimeout(() => setCrystalGet({ amount }), 1700); // 勝利演出のあとに入手演出
     }
@@ -625,11 +641,42 @@ export default function App() {
   // バトル勝利時のボーナス（ついてる／クリスタルラック等のスキル効果）
   function applyWinBonus({ coins = 0, crystals = 0 } = {}) {
     if (!coins && !crystals) return;
+    const c = Math.round(coins * eventCoinMult()); // 水曜=お金2倍
     updatePlayer((p) => ({
       ...p,
-      coins: (p.coins ?? 0) + coins,
-      crystals: (p.crystals ?? 0) + crystals,
+      coins: (p.coins ?? 0) + c,
+      crystals: (p.crystals ?? 0) + crystals * eventCrystalMult(),
     }));
+  }
+
+  // なかま（おとも）を育てる：コイン/クリスタルで餐やりしてレベル+。
+  function feedPartner(monsterId, kind = "coin") {
+    const mon = findMonster(monsterId);
+    if (!mon) return;
+    const cur = data.player.partners?.[monsterId];
+    if (!cur) return; // 未捕獲は育てられない
+    const maxLv = partnerMaxLevel(mon);
+    if ((cur.lv || 1) >= maxLv) return; // カンスト
+    const cost = feedCost(cur.lv || 1, kind);
+    if ((data.player.coins ?? 0) < cost.coins) return;       // コイン不足
+    if ((data.player.crystals ?? 0) < cost.crystals) return; // クリスタル不足
+    updatePlayer((p) => {
+      const partners = { ...(p.partners || {}) };
+      const e = partners[monsterId] || { lv: 1 };
+      if ((e.lv || 1) >= maxLv) return p;
+      partners[monsterId] = { ...e, lv: Math.min(maxLv, (e.lv || 1) + cost.levels) };
+      return {
+        ...p,
+        partners,
+        coins: (p.coins ?? 0) - cost.coins,
+        crystals: (p.crystals ?? 0) - cost.crystals,
+      };
+    });
+  }
+
+  // 「おとも」を装備（同じものを選んだら解除）
+  function setCompanion(monsterId) {
+    updatePlayer((p) => ({ ...p, companion: p.companion === monsterId ? null : monsterId }));
   }
 
   // 効果音：ボタンのクリック（決定/戻る）を全体で拾う（ホバーの移動音は無し）
@@ -671,15 +718,16 @@ export default function App() {
     const today = todayStr();
     if (!canClaimLogin(data.player, today)) return;
     const { streak, reward, crystal, isFifth } = computeLogin(data.player, today);
+    const rewardCoins = Math.round(reward * eventCoinMult()); // 水曜=お金2倍
     updatePlayer((p) => ({
       ...p,
-      coins: (p.coins || 0) + reward,
+      coins: (p.coins || 0) + rewardCoins,
       crystals: (p.crystals || 0) + crystal, // 5日連続ごとにクリスタル+10
       loginStreak: streak,
       lastLoginDate: today,
     }));
     // 演出はホーム画面が落ち着いてから少し間を置いて出す（いきなり出ると慌ただしいため）
-    const t = setTimeout(() => setLoginBonus({ reward, streak, crystal, isFifth }), 1000);
+    const t = setTimeout(() => setLoginBonus({ reward: rewardCoins, streak, crystal, isFifth }), 1000);
     return () => clearTimeout(t);
   }, [screen]); // eslint-disable-line
 
@@ -844,7 +892,12 @@ export default function App() {
 
   // モンスター図鑑（倒したモンスターのコレクション）
   if (screen === "collection") {
-    return <Collection player={data.player} records={data.records} onBack={() => setScreen("home")} />;
+    return <Collection player={data.player} records={data.records} onPartners={() => setScreen("partners")} onBack={() => setScreen("home")} />;
+  }
+
+  // なかま（おとも）育成画面
+  if (screen === "partners") {
+    return <Partners player={data.player} onFeed={feedPartner} onEquip={setCompanion} onBack={() => setScreen("home")} />;
   }
 
   // スキルセット画面（スロット1/2に装備するスキルを選ぶ）
@@ -1004,6 +1057,7 @@ export default function App() {
       onShop={() => setScreen("shop")}
       onSkill={() => setScreen("skill")}
       onCollection={() => setScreen("collection")}
+      onPartners={() => setScreen("partners")}
       onDetail={() => setScreen("status")}
       onHowTo={() => setScreen("howto")}
       onCharacter={() => setScreen("character")}

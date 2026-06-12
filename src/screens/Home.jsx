@@ -3,7 +3,7 @@
 // ============================================================
 import { useState, useEffect } from "react";
 import Header from "../components/Header.jsx";
-import { goldenActive, goldenRemainMs, goldenEndedToday } from "../engine/daily.js";
+import { goldenActive, goldenRemainMs, goldenEndedToday, todayEvent } from "../engine/daily.js";
 import CharBubble, { voice } from "../components/CharBubble.jsx";
 import { MathBackdrop } from "../components/Decorations.jsx";
 import Dashboard from "../components/Dashboard.jsx";
@@ -14,7 +14,7 @@ const itemName = (id) => findItem(id)?.name ?? "";
 const GRADE_LABEL = { 1: "中1", 2: "中2", 3: "中3" };
 const GRADE_COLOR = { 1: "#818cf8", 2: "#f43f5e", 3: "#fbbf24" }; // 中1=藍 中2=赤 中3=黄
 
-export default function Home({ player, records, mistakeCount, grade = 1, onSetGrade, onTimeAttack, onChallenge, onBattle, onRelearn, onClinic, onStartGolden, onShop, onSkill, onCollection, onDetail, onHowTo, onCharacter }) {
+export default function Home({ player, records, mistakeCount, grade = 1, onSetGrade, onTimeAttack, onChallenge, onBattle, onRelearn, onClinic, onStartGolden, onShop, onSkill, onCollection, onPartners, onDetail, onHowTo, onCharacter }) {
   const availGrades = gradesWithChapters();
   const [msg] = useState(() => voice("open"));
   const greeting = player.name ? `${player.name}、${msg}` : msg;
@@ -32,6 +32,26 @@ export default function Home({ player, records, mistakeCount, grade = 1, onSetGr
       <Header player={player} />
       <div className="content" style={{ position: "relative", zIndex: 1 }}>
         <CharBubble text={greeting} avatar={player.avatar} onAvatar={onCharacter} />
+
+        {/* 今日の曜日イベント（毎週その曜日に自動発生） */}
+        {(() => {
+          const ev = todayEvent();
+          if (!ev) return null;
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              margin: "0 0 11px", padding: "10px 13px", borderRadius: 12,
+              background: `linear-gradient(135deg, ${ev.color}22, ${ev.color}10)`,
+              border: `1.5px solid ${ev.color}88`,
+            }}>
+              <span style={{ fontSize: 26, filter: `drop-shadow(0 0 6px ${ev.color})` }}>{ev.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: ev.color }}>今日は「{ev.label}」！</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.65)" }}>{ev.desc}</div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ゴールデンタイム：自分のタイミングで開始 → 15分間 XP1.2倍 */}
         {gActive ? (
@@ -133,6 +153,12 @@ export default function Home({ player, records, mistakeCount, grade = 1, onSetGr
         {onCollection && (
           <button className="nb-btn" onClick={onCollection} style={{ marginBottom: 10, background: "linear-gradient(135deg,#0ea5e9,#22d3ee)", color: "#fff" }}>
             📖 モンスター図鑑（倒したモンスターを集めよう）
+          </button>
+        )}
+
+        {onPartners && (
+          <button className="nb-btn" onClick={onPartners} style={{ marginBottom: 10, background: "linear-gradient(135deg,#f59e0b,#f472b6)", color: "#fff" }}>
+            🐾 なかま育成（おともを育ててバトルを有利に）
           </button>
         )}
 
