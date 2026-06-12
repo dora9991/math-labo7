@@ -1,17 +1,26 @@
 // ============================================================
-// partners.js — 「なかま（おとも）モンスター育成」のルール（純関数のみ）
+// partners.js — 「なかま（仲間モンスター）」のルール（純関数のみ）
 //
-//  ・バトルで倒したモンスターは「なかま」になる（player.partners に登録）。
-//  ・コイン/クリスタルで「餐やり」してレベルを上げると強くなる。
-//  ・1体を「おとも」に装備（player.companion）すると、バトル中ずっと
-//    攻撃力・最大HPがレベルに応じて上がる（battleBonuses に合算）。
+//  ・バトルで「魔物のエサ」を使った敵をたおすと、一定確率で仲間になる
+//    （ザコ50%／ボス25%・その敵の単元を簡単/普通/難しい全て★1以上が条件）。
+//  ・仲間はコイン/クリスタルで「餐やり」してレベルを上げると強くなる。
+//  ・「ストック」最大4体まで編成でき、そのうち1体を「アクティブ」にすると、
+//    バトルに主人公とともに参戦して一緒に戦う（残り3体は控え＝参戦しない）。
 //
 //  ※ ここは monsters.js / battle.js を import しない（循環参照を避ける）。
-//    モンスター定義が要る処理（最大Lv・ティア判定）は monster オブジェクトを
-//    引数で受け取る形にして、呼び出し側（App）が MONSTERS から渡す。
+//    モンスター定義が要る処理は monster オブジェクトを引数で受け取る。
 // ============================================================
 
-// なかまレベルの上限（ティアが高いほど高くまで育つ＝ボスのおともは強い）
+// ストック（編成）に入れられる最大数。うち1体だけがバトルに参戦する。
+export const PARTY_MAX = 4;
+
+// 魔物のエサの値段（items.js の bait と一致させる）
+export const BAIT_COST = 500;
+
+// 仲間になる確率（エサ使用済みの敵をたおしたとき）
+export const RECRUIT_CHANCE = { zako: 0.5, boss: 0.25 };
+
+// なかまレベルの上限（ティアが高いほど高くまで育つ＝ボスは強い仲間になる）
 export const PARTNER_MAX_LEVEL = { unit: 15, boss: 25, final: 30 };
 
 /** モンスターのティア（"unit" | "boss" | "final"）。monster.kind から判定。 */
@@ -22,29 +31,30 @@ export function partnerTierOf(monster) {
   return "unit";
 }
 
+/** そのモンスターを仲間にできる確率（ボス/魔王=25%・それ以外=50%） */
+export function recruitChance(monster) {
+  const t = partnerTierOf(monster);
+  return t === "unit" ? RECRUIT_CHANCE.zako : RECRUIT_CHANCE.boss;
+}
+
 /** そのモンスターのなかまレベル上限 */
 export function partnerMaxLevel(monster) {
   return PARTNER_MAX_LEVEL[partnerTierOf(monster)] || PARTNER_MAX_LEVEL.unit;
 }
 
 /**
- * おとも（装備中のなかま）によるバトル補正。レベルに比例。
- *  攻撃力 +1.5%/Lv（上限+35%）・最大HP +1.0%/Lv（上限+25%）
- *  lv=0（なかまなし）なら 0。
+ * 仲間モンスターのバトル用ステータス（HP・攻撃力）。
+ *  敵としての強さ(monster.atk)とレベルから算出（深い敵・高Lvほど強い仲間）。
+ *   攻撃力 = monster.atk × (0.5 + (lv-1)*0.07)
+ *   最大HP = monster.atk × 4 × (0.6 + (lv-1)*0.09)
+ * @returns {{maxHp:number, atk:number}}
  */
-export function companionBonusFromLevel(lv = 0) {
-  const L = Math.max(0, lv);
-  return {
-    atkPct: Math.min(0.35, L * 0.015),
-    hpPct: Math.min(0.25, L * 0.01),
-  };
-}
-
-/** player の「装備中おとも」のバトル補正 {atkPct,hpPct} */
-export function companionBonus(player) {
-  const id = player?.companion;
-  const lv = id ? player?.partners?.[id]?.lv || 0 : 0;
-  return companionBonusFromLevel(lv);
+export function allyStats(monster, lv = 1) {
+  const base = Math.max(4, monster?.atk || 8);
+  const L = Math.max(1, lv);
+  const atk = Math.max(1, Math.round(base * (0.5 + (L - 1) * 0.07)));
+  const maxHp = Math.max(8, Math.round(base * 4 * (0.6 + (L - 1) * 0.09)));
+  return { maxHp, atk };
 }
 
 // 餐やりの種類：コイン=エサ（+1Lv・安い）/ クリスタル=ごちそう（+3Lv・速い）
@@ -54,9 +64,8 @@ export const FEED_KINDS = {
 };
 
 /**
- * 現在レベル lv のなかまを1回育てるコスト。
- *  コイン：40 + lv*30（レベルが上がるほど高くなる）
- *  クリスタル：2 + floor(lv/6)（ごちそう。まとめて+3Lv）
+ * 現在レベル lv の仲間を1回育てるコスト。
+ *  コイン：40 + lv*30 / クリスタル：2 + floor(lv/6)（ごちそうは+3Lv）
  * @returns {{coins:number, crystals:number, levels:number}}
  */
 export function feedCost(lv = 1, kind = "coin") {
@@ -65,10 +74,4 @@ export function feedCost(lv = 1, kind = "coin") {
     return { coins: 0, crystals: 2 + Math.floor(L / 6), levels: FEED_KINDS.crystal.levels };
   }
   return { coins: 40 + L * 30, crystals: 0, levels: FEED_KINDS.coin.levels };
-}
-
-/** 表示用：そのなかまの現在の補正を「+12% / +8%」のような形で返す */
-export function companionBonusLabel(lv = 0) {
-  const b = companionBonusFromLevel(lv);
-  return { atk: Math.round(b.atkPct * 100), hp: Math.round(b.hpPct * 100) };
 }

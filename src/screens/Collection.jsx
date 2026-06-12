@@ -18,6 +18,8 @@ export default function Collection({ player, records, onPartners, onBack }) {
       .filter((r) => r.mode === "battle" && r.extra && r.extra.result === "win")
       .map((r) => r.extra.monsterId)
   );
+  // 仲間にしたモンスターidの集合（エサで仲間にした子）
+  const recruited = new Set(Object.keys(player.partners || {}));
   const total = MONSTERS.length;
   const got = MONSTERS.filter((m) => defeated.has(m.id)).length;
 
@@ -33,7 +35,7 @@ export default function Collection({ player, records, onPartners, onBack }) {
 
         {onPartners && (
           <button className="nb-btn" onClick={onPartners} style={{ marginBottom: 10, background: "linear-gradient(135deg,#f59e0b,#f472b6)", color: "#fff" }}>
-            🐾 なかまを育てる（おともにしてバトルへ）→
+            🐾 なかまを編成・育成する →
           </button>
         )}
 
@@ -59,21 +61,26 @@ export default function Collection({ player, records, onPartners, onBack }) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {list.map((m) => {
                   const has = defeated.has(m.id);
+                  const got = recruited.has(m.id); // 仲間にした
                   const isBoss = m.kind === "chapterBoss" || m.kind === "finalBoss";
                   return (
                     <div key={m.id} style={{
+                      position: "relative",
                       padding: "8px 6px", borderRadius: 12, textAlign: "center",
                       background: has ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.18)",
-                      border: `1px solid ${has ? (isBoss ? "#f472b6" : "rgba(103,232,249,.35)") : "rgba(255,255,255,.07)"}`,
+                      border: `1px solid ${got ? "#fbbf24" : has ? (isBoss ? "#f472b6" : "rgba(103,232,249,.35)") : "rgba(255,255,255,.07)"}`,
                     }}>
+                      {got && (
+                        <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8.5, fontWeight: 900, color: "#3a2a00", background: "linear-gradient(135deg,#f59e0b,#fbbf24)", borderRadius: 999, padding: "1px 6px", boxShadow: "0 0 6px #fbbf24" }}>🐾 GET</span>
+                      )}
                       <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <MonsterSprite monster={m} mini state="idle" silhouette={!has} />
                       </div>
                       <div style={{ fontSize: 10.5, fontWeight: 900, color: has ? "#fff" : "rgba(255,255,255,.4)", marginTop: 4, lineHeight: 1.2, minHeight: 26 }}>
                         {has ? m.name : "？？？"}
                       </div>
-                      <div style={{ fontSize: 8.5, fontWeight: 800, marginTop: 2, color: isBoss ? "#f9a8d4" : "rgba(255,255,255,.4)" }}>
-                        {isBoss ? KIND_LABEL[m.kind] : has ? (m.unit || "") : ""}
+                      <div style={{ fontSize: 8.5, fontWeight: 800, marginTop: 2, color: got ? "#fbbf24" : isBoss ? "#f9a8d4" : "rgba(255,255,255,.4)" }}>
+                        {got ? "✓ 仲間" : isBoss ? KIND_LABEL[m.kind] : has ? (m.unit || "") : ""}
                       </div>
                     </div>
                   );

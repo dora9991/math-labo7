@@ -12,8 +12,8 @@ import GachaBox from "../components/GachaBox.jsx";
 import { playerLevel } from "../engine/scoring.js";
 
 // アイテムを種別ごとにグループ表示する見出し
-const KIND_LABEL = { heal: "❤️ 回復", sp: "⚡ SP回復", atk2x: "💪 攻撃アップ", guard: "🛡️ 防御" };
-const KIND_ORDER = ["heal", "sp", "atk2x", "guard"];
+const KIND_LABEL = { heal: "❤️ 回復", sp: "⚡ SP回復", atk2x: "💪 攻撃アップ", guard: "🛡️ 防御", bait: "🍖 仲間にする" };
+const KIND_ORDER = ["heal", "sp", "atk2x", "guard", "bait"];
 
 export default function Shop({ player, onBuy, onDiscard, onHeal, onPullGacha, onEquipGear, onBack }) {
   const coins = player.coins ?? 0;

@@ -104,8 +104,9 @@ export function initialPlayerState(studentId) {
     ownedHeroes: ["hero10"], // 購入で解放したヒーローid。初期は STARTER のみ（他は💰500で購入）
     name: "",          // プレイヤー名（任意）
     unitMastery: {},   // { unitId: { pt:0〜100, streak:連続正解数, ok:bool } } 小単元の習得確認（4連続正解でOK）
-    partners: {},      // なかま（倒したモンスター）{ monsterId: { lv } }。コイン/クリスタルで育成
-    companion: null,   // 装備中の「おとも」monsterId。バトル中ずっと攻撃/HPが上がる
+    partners: {},      // なかま（エサで仲間にしたモンスター）{ monsterId: { lv } }。コイン/クリスタルで育成
+    party: [],         // ストック（編成）monsterId配列・最大4体。先頭(activePartner)だけバトル参戦
+    activePartner: null, // バトルに参戦する仲間1体のmonsterId（party内の1体）
     updatedAt: now(),
   };
 }
@@ -144,7 +145,13 @@ export function normalizePlayerState(p) {
   out.crystals = Number.isFinite(p.crystals) ? p.crystals : 0;
   out.relearnSolved = Number.isFinite(p.relearnSolved) ? p.relearnSolved : 0;
   out.partners = (p.partners && typeof p.partners === "object") ? p.partners : {};
-  out.companion = (p.companion && out.partners[p.companion]) ? p.companion : (p.companion || null);
+  // party（ストック最大4）。旧 companion があれば引き継ぐ。所持していない仲間は除外。
+  let party = Array.isArray(p.party) ? p.party.slice() : [];
+  if (!party.length && p.companion) party = [p.companion];
+  party = party.filter((id) => out.partners[id]).slice(0, 4);
+  out.party = party;
+  out.activePartner = (p.activePartner && party.includes(p.activePartner)) ? p.activePartner
+    : (party.includes(p.companion) ? p.companion : (party[0] || null));
   out.skillOwned = (p.skillOwned && typeof p.skillOwned === "object") ? p.skillOwned : {};
   out.ownedSkills = Array.isArray(p.ownedSkills) && p.ownedSkills.length ? p.ownedSkills : [...base.ownedSkills];
   // ── ヒーロー所持／初期キャラの補完 ──

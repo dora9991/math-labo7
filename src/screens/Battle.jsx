@@ -15,12 +15,13 @@ import MathText from "../components/MathText.jsx";
 import * as bgm from "../audio/bgm.js";
 import * as sfx from "../audio/sfx.js";
 import { getPlayerBattleStats, calcDamage, genBattleProblem, getEquippedSkills, SP_MAX, ultimateDamage, enemyDecide, battleBonuses } from "../engine/battle.js";
+import { allyStats } from "../engine/partners.js";
 import { findItem } from "../engine/items.js";
 import { isCorrect, playerLevel } from "../engine/scoring.js";
 
 const ENEMY_CHARGE_NEED = 2; // super型が超必殺を撃つまでのチャージ回数（engine ENEMY_AI.super と一致）
 
-export default function Battle({ player, monster, onResult, onSpChange, onItemUse, onHpChange, onWinBonus, onExit, onMistake }) {
+export default function Battle({ player, monster, ally = null, onResult, onSpChange, onItemUse, onUseBait, onHpChange, onWinBonus, onExit, onMistake }) {
   const lv = playerLevel(player); // 現在ワールド（学年）のレベルでバトル能力が決まる
   // 制限時間 = 基本の制限時間 × (自分のレベル+10) ÷ (敵の適正レベル+10)（切り上げ）
   //  +10で格差をマイルドに。自分が強いほど長く、格上の敵だと短くなる。最低1秒。
@@ -124,6 +125,16 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
     setDebuffTags(tags);
   }
   const setMonsterShieldBoth = (v) => { const n = Math.max(0, Math.round(v)); monsterShieldRef.current = n; setMonsterShield(n); };
+
+  // ── アクティブ仲間モンスター（主人公とともに参戦・1体）──
+  const allyDef = ally && ally.monster ? ally : null;            // { monster, lv }
+  const allyBase = allyDef ? allyStats(allyDef.monster, allyDef.lv) : null; // { maxHp, atk }
+  const [allyHp, setAllyHp] = useState(allyBase ? allyBase.maxHp : 0);
+  const allyHpRef = useRef(allyBase ? allyBase.maxHp : 0);
+  const [allyOut, setAllyOut] = useState(false); // HP0で退場したか
+  const allyOutRef = useRef(false);
+  const [allyAct, setAllyAct] = useState(false); // 追撃モーション
+  const baitedRef = useRef(false); // この戦闘で魔物のエサを使ったか（表示用）
   // 画面のバフ表示を再計算
   function refreshBuffTags() {
     const tags = [];
@@ -357,6 +368,10 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
       const amt = it.value ?? 5;
       changeSp(sp + amt);
       setLog(`${it.icon} ${it.name}！ スキルポイントが ${amt} 増えた！`);
+    } else if (it.kind === "bait") {
+      baitedRef.current = true;
+      onUseBait?.(monster.id); // App に通知：この敵をたおすと仲間チャレンジ
+      setLog(`🍖 ${it.name}を投げた！ この敵をたおすと仲間になるかも？`);
     }
   }
 
@@ -431,6 +446,25 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
     if (monster.enrage && monsterHpRef.current <= monster.hp * 0.5) scaled = rawDmg * monster.enrage;
     // 1パン防止：1回の被ダメは最大HPの70%まで（満タンからの即死を避ける）
     let dmg = Math.max(1, Math.min(Math.round(scaled), Math.ceil(stats.maxHp * 0.7)));
+
+    // 仲間が庇う：主人公HPが30%以下なら、生きている仲間がダメージを肩代わりする。
+    if (allyBase && !allyOutRef.current && playerHpRef.current <= stats.maxHp * 0.3) {
+      const aname = allyDef.monster.name;
+      setShakeAns(true); setTimeout(() => setShakeAns(false), 460);
+      setMonState("attack"); setAnimKey((k) => k + 1);
+      if (fx) showEnemyFx(fx);
+      // ref を同期的に更新してから KO 判定（setState は非同期なので ref を真として扱う）
+      const newAllyHp = Math.max(0, allyHpRef.current - dmg);
+      allyHpRef.current = newAllyHp; setAllyHp(newAllyHp);
+      if (newAllyHp <= 0) {
+        allyOutRef.current = true; setAllyOut(true);
+        setLog(`🛡️ ${aname}が主人公をかばった！ ${aname}は たおれて退場した…`);
+      } else {
+        setLog(`🛡️ ${aname}が主人公をかばった！ -${dmg}`);
+      }
+      return; // 主人公はノーダメージ
+    }
+
     let guarded = false, invinc = false;
     const gb = opts.pierce ? null : guardBuffRef.current; // 貫通はガードを無視
     if (gb && gb.turns > 0) {
@@ -621,6 +655,25 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
     refreshBuffTags();
   }
 
+  // 主人公の攻撃のあと、生きている仲間が「追撃」する。終わったら次の問題へ。
+  function allyFollowUp() {
+    if (endedRef.current) return;
+    if (!allyBase || allyOutRef.current) { nextQuestion(); return; }
+    const dmg = allyBase.atk;
+    setAllyAct(true); setTimeout(() => setAllyAct(false), 360);
+    showEnemyFx({ icon: "🐾", label: `${allyDef.monster.name}の追撃！`, color: "#fbbf24" });
+    setMonState("damage"); setAnimKey((k) => k + 1);
+    setMonDmg(`-${dmg}`); setDmgKey((k) => k + 1);
+    setLog(`🐾 ${allyDef.monster.name}の追撃！ ${dmg}ダメージ！`);
+    setMonsterHp((hp) => {
+      const nv = Math.max(0, hp - dmg);
+      monsterHpRef.current = nv;
+      if (nv <= 0) setTimeout(triggerWin, 350);
+      else setTimeout(() => { setMonState("idle"); nextQuestion(); }, 650);
+      return nv;
+    });
+  }
+
   function answer(val) {
     if (locked || phaseRef.current !== "fight" || !q || val === "" || val == null) return;
     setLocked(true); lockedRef.current = true;
@@ -681,8 +734,9 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
       }
       setMonsterHp((hp) => {
         const nv = Math.max(0, hp - toHp);
+        monsterHpRef.current = nv;
         if (nv <= 0) setTimeout(triggerWin, 350);
-        else setTimeout(() => { setMonState("idle"); nextQuestion(); }, 700);
+        else setTimeout(() => { setMonState("idle"); allyFollowUp(); }, 700); // 主人公→仲間の追撃→次の問題
         return nv;
       });
     } else {
@@ -833,6 +887,24 @@ export default function Battle({ player, monster, onResult, onSpChange, onItemUs
             <div className="bt-hp-track" style={{ width: 110 }}><div className="bt-hp-fill" style={{ width: plHpPct + "%", background: hpColor(plHpPct) }} /></div>
           </div>
         </div>
+
+        {/* アクティブ仲間（おとも）のHP */}
+        {allyBase && (
+          <div className="bt-panel bt-player" style={{ opacity: allyOut ? 0.45 : 1 }}>
+            <div style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", transform: allyAct ? "translateX(6px) scale(1.1)" : "none", transition: "transform .15s" }}>
+              <MonsterSprite monster={allyDef.monster} mini state={allyOut ? "dead" : "idle"} />
+            </div>
+            <span className="bt-player-name" style={{ color: "#fbbf24" }}>{allyDef.monster.name}（仲間）</span>
+            {allyOut ? (
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#f87171" }}>退場…</span>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#fbbf24", fontSize: 12 }}>
+                HP {Math.max(0, allyHp)}/{allyBase.maxHp}
+                <div className="bt-hp-track" style={{ width: 90 }}><div className="bt-hp-fill" style={{ width: Math.max(0, (allyHp / allyBase.maxHp) * 100) + "%", background: hpColor((allyHp / allyBase.maxHp) * 100) }} /></div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* タイマー＋コンボ */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

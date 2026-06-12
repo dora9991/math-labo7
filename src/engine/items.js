@@ -47,6 +47,12 @@ export const ITEMS = [
     kind: "guard", reduce: 0.34, turns: 2, color: "#60a5fa", desc: "2ターンのあいだ 受けるダメージが約1/3" },
   { id: "guard3", name: "聖なる盾", icon: "🛡️", price: 1000, unlockLv: 24, tier: 3,
     kind: "guard", reduce: 0.25, turns: 3, color: "#3b82f6", desc: "3ターンのあいだ 受けるダメージが1/4" },
+
+  // ── 仲間にする「魔物のエサ」──
+  // バトル中に使うとその敵に「エサ」をマーク。たおすと一定確率で仲間になる
+  //  （ザコ50%／ボス25%・その敵の単元を簡単/普通/難しい全て★1以上が条件）。
+  { id: "bait", name: "魔物のエサ", icon: "🍖", price: 500, unlockLv: 1, tier: 1,
+    kind: "bait", color: "#fca5a5", desc: "バトル中に使い、その敵をたおすと仲間になることがある（ザコ50%/ボス25%・要★条件）" },
 ];
 
 // 旧セーブの item id を新tier1 id へ読み替える（後方互換）

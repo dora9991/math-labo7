@@ -47,7 +47,8 @@ import { findItem, treatCost } from "./engine/items.js";
 import { getPlayerBattleStats, BATTLE_SKILLS, battleBonuses, isCalcKingCleared, CALC_KING_CLEAR_STREAK, CALC_KING_CLEAR_CRYSTAL, findSkill, rollSkillGacha, rollSkillGachaMulti, SKILL_RARITY, SKILL_GACHA_COST_1, SKILL_GACHA_MULTI_COST, SKILL_GACHA_MULTI_N } from "./engine/battle.js";
 import { MONSTERS, findMonster } from "./data/monsters.js";
 import Partners from "./screens/Partners.jsx";
-import { feedCost, partnerMaxLevel } from "./engine/partners.js";
+import { feedCost, partnerMaxLevel, recruitChance, PARTY_MAX } from "./engine/partners.js";
+import { unitFullyStarred } from "./engine/progress.js";
 import { foldSequence } from "./engine/unitMastery.js";
 import { isUnitMonsterUnlocked } from "./engine/unlock.js";
 import { challengeXp } from "./data/challenge.js";
@@ -84,6 +85,8 @@ export default function App() {
   const loginCheckedRef = useRef(false);              // 今セッションでログイン判定済みか
   const [skillGet, setSkillGet] = useState(null); // スキル入手演出（章ボス撃破）
   const [crystalGet, setCrystalGet] = useState(null); // クリスタル入手演出（ボス撃破）{ amount }
+  const [recruitResult, setRecruitResult] = useState(null); // 仲間チャレンジの結果演出 { ok, name }
+  const baitUsedRef = useRef(null); // 今のバトルで「魔物のエサ」を使った敵のid
   const [calcKingClear, setCalcKingClear] = useState(null); // 計算王クリア演出（バトル攻撃力アップ）
   const [newMonster, setNewMonster] = useState(null); // 新モンスター出現演出（タイムアタックで解放）
   const [weakKey, setWeakKey] = useState(0); // 苦手タイムアタックの再挑戦（もう一回）でリセットする用
@@ -620,14 +623,11 @@ export default function App() {
     if (win) addXp(gained);
     // 敗北：HP1（Battle側で保存済み）でメニュー画面へ戻る
     if (!win) { setBattleMonster(null); setScreen("home"); return; }
-    // 勝利：そのモンスターが「なかま」になる（未捕獲なら Lv1 で登録）。
-    //  まだ「おとも」未設定なら、最初のなかまを自動でおともにする（発見しやすく）。
-    updatePlayer((p) => {
-      const partners = { ...(p.partners || {}) };
-      const newlyCaught = !partners[battleMonster.id];
-      if (newlyCaught) partners[battleMonster.id] = { lv: 1 };
-      return { ...p, partners, companion: p.companion || (newlyCaught ? battleMonster.id : p.companion) };
-    });
+    // 勝利：エサを使った敵なら「仲間チャレンジ」。条件(★全部)＆未所持なら確率で仲間に。
+    if (baitUsedRef.current === battleMonster.id) {
+      baitUsedRef.current = null;
+      tryRecruit(battleMonster);
+    }
     // モンスターを「初めて」たおしたら、スキルガチャ用のクリスタルを入手
     //  通常モンスター=5個・ボス（章ボス/ラスボス）=10個。再戦（撃破済み）ではもらえない。
     if (win && !alreadyCleared) {
@@ -674,9 +674,69 @@ export default function App() {
     });
   }
 
-  // 「おとも」を装備（同じものを選んだら解除）
-  function setCompanion(monsterId) {
-    updatePlayer((p) => ({ ...p, companion: p.companion === monsterId ? null : monsterId }));
+  // ストック（編成）の出し入れ：最大4体。0体→最初の1体を自動でアクティブに。
+  function toggleParty(monsterId) {
+    if (!data.player.partners?.[monsterId]) return;
+    updatePlayer((p) => {
+      const party = Array.isArray(p.party) ? [...p.party] : [];
+      const idx = party.indexOf(monsterId);
+      let active = p.activePartner;
+      if (idx >= 0) {
+        party.splice(idx, 1);
+        if (active === monsterId) active = party[0] || null; // アクティブを外したら先頭へ
+      } else {
+        if (party.length >= PARTY_MAX) return p; // 満員
+        party.push(monsterId);
+        if (!active) active = monsterId; // 初めての1体はアクティブに
+      }
+      return { ...p, party, activePartner: active };
+    });
+  }
+
+  // バトルに出すアクティブ仲間を選ぶ（ストック内の1体）
+  function setActivePartner(monsterId) {
+    updatePlayer((p) => {
+      const party = Array.isArray(p.party) ? p.party : [];
+      if (!party.includes(monsterId)) return p;
+      return { ...p, activePartner: p.activePartner === monsterId ? null : monsterId };
+    });
+  }
+
+  // その敵を仲間にできる条件か（担当する全単元を簡単/普通/難しい★1以上・未所持）
+  function canRecruit(monster) {
+    if (!monster) return false;
+    if (data.player.partners?.[monster.id]) return false; // すでに仲間
+    const units = monster.kind === "unit"
+      ? [monster.unitId]
+      : (monster.pools || []).map((x) => x.u);
+    if (!units.length) return false;
+    return units.every((uid) => unitFullyStarred(data.player, uid));
+  }
+
+  // エサ使用済みの敵をたおしたとき：条件を満たせば確率で仲間に。
+  function tryRecruit(monster) {
+    if (!canRecruit(monster)) {
+      // 条件未達 or 所持済み：仲間にはならない（エサは消費済み）
+      setTimeout(() => setRecruitResult({ ok: false, name: monster.name, reason: "cond" }), 1700);
+      return;
+    }
+    const success = Math.random() < recruitChance(monster);
+    if (success) {
+      updatePlayer((p) => {
+        const partners = { ...(p.partners || {}), [monster.id]: { lv: 1 } };
+        // ストックに空きがあれば自動で編成、アクティブ未設定なら出陣させる
+        let party = Array.isArray(p.party) ? [...p.party] : [];
+        let active = p.activePartner;
+        if (party.length < PARTY_MAX) { party.push(monster.id); if (!active) active = monster.id; }
+        return { ...p, partners, party, activePartner: active };
+      });
+    }
+    setTimeout(() => setRecruitResult({ ok: success, name: monster.name }), 1700);
+  }
+
+  // バトルから「魔物のエサ」を使った敵を記録（撃破時の仲間判定に使う）
+  function markBaitUsed(monsterId) {
+    baitUsedRef.current = monsterId;
   }
 
   // 効果音：ボタンのクリック（決定/戻る）を全体で拾う（ホバーの移動音は無し）
@@ -897,7 +957,7 @@ export default function App() {
 
   // なかま（おとも）育成画面
   if (screen === "partners") {
-    return <Partners player={data.player} onFeed={feedPartner} onEquip={setCompanion} onBack={() => setScreen("home")} />;
+    return <Partners player={data.player} onFeed={feedPartner} onToggleParty={toggleParty} onSetActive={setActivePartner} onBack={() => setScreen("home")} />;
   }
 
   // スキルセット画面（スロット1/2に装備するスキルを選ぶ）
@@ -1013,9 +1073,16 @@ export default function App() {
         key={battleKey}
         player={data.player}
         monster={battleMonster}
+        ally={(() => {
+          const id = data.player.activePartner;
+          const e = id ? data.player.partners?.[id] : null;
+          const m = e ? findMonster(id) : null;
+          return m ? { monster: m, lv: e.lv || 1 } : null;
+        })()}
         onResult={handleBattleResult}
         onSpChange={(sp) => updatePlayer((p) => ({ ...p, sp }))}
         onItemUse={() => updatePlayer((p) => ({ ...p, item: null }))}
+        onUseBait={markBaitUsed}
         onHpChange={(hp) => updatePlayer((p) => ({ ...p, currentHp: hp }))}
         onWinBonus={applyWinBonus}
         onMistake={recordBattleMistake}
@@ -1096,6 +1163,7 @@ export default function App() {
       )}
       {skillGet && <SkillGetOverlay skill={skillGet} onDone={() => setSkillGet(null)} />}
       {crystalGet && <CrystalGetOverlay amount={crystalGet.amount} onDone={() => setCrystalGet(null)} />}
+      {recruitResult && <RecruitResultOverlay result={recruitResult} onDone={() => setRecruitResult(null)} />}
       {calcKingClear && (
         <CalcKingClearOverlay
           chapter={findChapterById(calcKingClear.unitId)}
@@ -1162,6 +1230,29 @@ function SkillGetOverlay({ skill, onDone }) {
 }
 
 // ボス撃破でクリスタルを入手したときの演出
+function RecruitResultOverlay({ result, onDone }) {
+  const ok = !!result.ok;
+  const condFail = result.reason === "cond";
+  const color = ok ? "#fbbf24" : "#94a3b8";
+  return (
+    <div onClick={onDone} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div className="glass" style={{ maxWidth: 320, padding: "26px 24px", textAlign: "center", border: `2px solid ${color}`, animation: "rankUpPop .5s cubic-bezier(.2,1.4,.4,1) both" }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color, letterSpacing: 2 }}>{ok ? "🎉 なかまになった！ 🎉" : "🍖 仲間チャレンジ"}</div>
+        <div style={{ fontSize: 56, margin: "10px 0" }}>{ok ? "🐾" : condFail ? "🔒" : "💨"}</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color }}>
+          {ok ? `${result.name} が仲間になった！` : condFail ? "まだ仲間にできない…" : `${result.name} は逃げてしまった…`}
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", margin: "8px 0 4px", lineHeight: 1.5 }}>
+          {ok ? "「なかま」画面でストックに入れて、バトルに連れていこう！"
+            : condFail ? "その敵の単元を「簡単・普通・難しい」全て★1以上にすると仲間にできるよ。"
+            : "もう一度エサを使って挑戦してみよう（ザコ50%/ボス25%）。"}
+        </div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 12 }}>タップで閉じる</div>
+      </div>
+    </div>
+  );
+}
+
 function CrystalGetOverlay({ amount, onDone }) {
   return (
     <div onClick={onDone} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>

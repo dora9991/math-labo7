@@ -19,6 +19,11 @@ export function isUnitUnlocked(playerState, chapter, unitIndex) {
   return getStars(playerState, prev.id, "easy") >= 1;
 }
 
+/** ある単元を「簡単・普通・難しい」全て★1以上で取れているか（仲間にする条件） */
+export function unitFullyStarred(playerState, unitId) {
+  return ["easy", "standard", "advanced"].every((lv) => getStars(playerState, unitId, lv) >= 1);
+}
+
 /** 章ごとの獲得星合計（達成度の表示用） */
 export function chapterStarTotal(playerState, chapter, levelKeys) {
   let total = 0;

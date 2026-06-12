@@ -158,7 +158,7 @@ export default function Home({ player, records, mistakeCount, grade = 1, onSetGr
 
         {onPartners && (
           <button className="nb-btn" onClick={onPartners} style={{ marginBottom: 10, background: "linear-gradient(135deg,#f59e0b,#f472b6)", color: "#fff" }}>
-            🐾 なかま育成（おともを育ててバトルを有利に）
+            🐾 なかま（仲間モンスターを編成・育成してバトルへ）
           </button>
         )}
 
