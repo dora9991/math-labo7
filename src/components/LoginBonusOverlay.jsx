@@ -1,11 +1,11 @@
 // ============================================================
 // LoginBonusOverlay.jsx — 1日1回のログインボーナス演出
-//  ・通常日：+100G ／ 5日連続ごと：+500G（ガチャ1回ぶん）
+//  ・通常日：+100G ／ 5日連続ごと：クリスタル💎×5（大ボーナスはコインではなくクリスタル）
 //  ・連続ログイン日数（🔥N日）を見せて継続を後押しする。
 // ============================================================
 import { useEffect } from "react";
 import * as sfx from "../audio/sfx.js";
-import { STREAK_TARGET } from "../engine/daily.js";
+import { STREAK_TARGET, BONUS_STREAK_CRYSTAL } from "../engine/daily.js";
 
 // 「こんなこともできるよ！」のヒント（毎日ちがうものを1つ出す）
 const TIPS = [
@@ -33,22 +33,26 @@ export default function LoginBonusOverlay({ reward, streak, crystal = 0, isFifth
         <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,.6)" }}>ログインボーナス</div>
         <div style={{ fontSize: 30, margin: "4px 0 2px" }}>{isFifth ? "🎁✨" : "🪙"}</div>
         <div style={{ fontSize: 13, color: "#fde047", fontWeight: 800 }}>🔥 {streak}日連続ログイン！</div>
-        <div style={{ fontSize: 34, fontWeight: 900, color: "#fbbf24", margin: "6px 0" }}>+{reward} <span style={{ fontSize: 16 }}>コイン</span></div>
         {isFifth ? (
           <>
-            {crystal > 0 && (
-              <div style={{ fontSize: 26, fontWeight: 900, color: "#67e8f9", margin: "0 0 4px" }}>
-                ＋{crystal} <span style={{ fontSize: 14 }}>クリスタル💎</span>
-              </div>
-            )}
+            {/* 5日連続の大ボーナスはクリスタルが主役（旧：コイン500） */}
+            <div style={{ fontSize: 34, fontWeight: 900, color: "#67e8f9", margin: "6px 0 2px" }}>
+              ＋{crystal} <span style={{ fontSize: 16 }}>クリスタル💎</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#fbbf24", marginBottom: 4 }}>
+              ＋{reward} <span style={{ fontSize: 12 }}>コイン</span>
+            </div>
             <div style={{ fontSize: 12.5, color: "#86efac", fontWeight: 700, lineHeight: 1.6 }}>
-              5日連続ボーナス！🎉<br />ガチャ1回ぶん＆スキルガチャも引けるよ。
+              5日連続ボーナス！🎉<br />クリスタルでスキルガチャが引けるよ。
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", lineHeight: 1.6 }}>
-            あと <b style={{ color: "#fde047" }}>{toNext}日</b> 連続で <b style={{ color: "#fbbf24" }}>+500コイン</b>（ガチャ1回）！
-          </div>
+          <>
+            <div style={{ fontSize: 34, fontWeight: 900, color: "#fbbf24", margin: "6px 0" }}>+{reward} <span style={{ fontSize: 16 }}>コイン</span></div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", lineHeight: 1.6 }}>
+              あと <b style={{ color: "#fde047" }}>{toNext}日</b> 連続で <b style={{ color: "#67e8f9" }}>クリスタル{BONUS_STREAK_CRYSTAL}個💎</b>！
+            </div>
+          </>
         )}
         {/* こんなこともできるよ！（毎日ひとつ提案） */}
         <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 12, background: "rgba(129,140,248,.14)", border: "1px solid rgba(129,140,248,.4)", textAlign: "left" }}>

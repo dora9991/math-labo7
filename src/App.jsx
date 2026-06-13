@@ -787,7 +787,7 @@ export default function App() {
     updatePlayer((p) => ({
       ...p,
       coins: (p.coins || 0) + rewardCoins,
-      crystals: (p.crystals || 0) + crystal, // 5日連続ごとにクリスタル+10
+      crystals: (p.crystals || 0) + crystal, // 5日連続ごとの大ボーナス＝クリスタル+5（旧：コイン500）
       loginStreak: streak,
       lastLoginDate: today,
     }));

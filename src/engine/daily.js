@@ -2,7 +2,7 @@
 // daily.js — 毎日の習慣づけ（ログインボーナス & ゴールデンタイム）
 //
 //  ・ログインボーナス：1日1回。連続ログインで継続を後押し。
-//      基本 100G／5日連続ごとに 500G（＝ガチャ1回ぶん）。
+//      基本 100G／5日連続ごとの大ボーナスはクリスタル💎で付与（5個）。
 //  ・ゴールデンタイム：その日の最初の15分は XP ×1.2。
 //      集中したスタートを後押しし、「だらだら続け」を防ぐゆるい区切りにもする。
 //
@@ -10,9 +10,8 @@
 //  純関数だけ。状態保存・UIには依存しない。
 // ============================================================
 
-export const BONUS_BASE = 100;     // 通常日のログインボーナス(G)
-export const BONUS_STREAK = 500;   // 5日連続ごとのボーナス(G)＝ガチャ1回
-export const BONUS_STREAK_CRYSTAL = 10; // 5日連続ごとに追加でもらえるクリスタル💎
+export const BONUS_BASE = 100;     // 毎日のログインボーナス(G)。5日目も同じ基本コインは付く
+export const BONUS_STREAK_CRYSTAL = 5; // ★5日連続ごとの大ボーナス＝クリスタル💎（旧：コイン500→クリスタル付与に変更）
 export const STREAK_TARGET = 5;    // 何日連続ごとに大ボーナスか
 export const GOLDEN_MS = 15 * 60 * 1000; // ゴールデンタイムの長さ（15分）
 export const GOLDEN_MULT = 1.2;    // ゴールデンタイム中のXP倍率
@@ -29,7 +28,7 @@ export function dayDiff(prev, cur) {
 
 /**
  * 今日のログインボーナスを計算する（まだ受け取っていない前提で呼ぶ）。
- * @returns {{streak:number, reward:number, isFifth:boolean}}
+ * @returns {{streak:number, reward:number, crystal:number, isFifth:boolean}}
  */
 export function computeLogin(player = {}, today) {
   const diff = dayDiff(player.lastLoginDate, today);
@@ -40,8 +39,8 @@ export function computeLogin(player = {}, today) {
   const isFifth = streak % STREAK_TARGET === 0;
   return {
     streak,
-    reward: isFifth ? BONUS_STREAK : BONUS_BASE,
-    crystal: isFifth ? BONUS_STREAK_CRYSTAL : 0, // 5日連続ごとにクリスタル+10
+    reward: BONUS_BASE,                          // コインは毎日 基本100G（5日目も同じ。大ボーナスはクリスタルに変更）
+    crystal: isFifth ? BONUS_STREAK_CRYSTAL : 0, // ★5日連続ごとの大ボーナス＝クリスタル5個
     isFifth,
   };
 }
