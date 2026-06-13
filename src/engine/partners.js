@@ -45,33 +45,48 @@ export function partnerMaxLevel(monster) {
 /**
  * 仲間モンスターのバトル用ステータス（HP・攻撃力）。
  *  敵としての強さ(monster.atk)とレベルから算出（深い敵・高Lvほど強い仲間）。
- *   攻撃力 = monster.atk × (0.5 + (lv-1)*0.07)
- *   最大HP = monster.atk × 4 × (0.6 + (lv-1)*0.09)
+ *   攻撃力 = monster.atk × (0.5 + (atkLv-1)*0.07)   ← クリスタルで強化
+ *   最大HP = monster.atk × 4 × (0.6 + (hpLv-1)*0.09) ← お金で強化
  * @returns {{maxHp:number, atk:number}}
  */
-export function allyStats(monster, lv = 1) {
+export function allyStats(monster, hpLv = 1, atkLv = 1) {
   const base = Math.max(4, monster?.atk || 8);
-  const L = Math.max(1, lv);
-  const atk = Math.max(1, Math.round(base * (0.5 + (L - 1) * 0.07)));
-  const maxHp = Math.max(8, Math.round(base * 4 * (0.6 + (L - 1) * 0.09)));
+  const hL = Math.max(1, hpLv);
+  const aL = Math.max(1, atkLv);
+  const atk = Math.max(1, Math.round(base * (0.5 + (aL - 1) * 0.07)));
+  const maxHp = Math.max(8, Math.round(base * 4 * (0.6 + (hL - 1) * 0.09)));
   return { maxHp, atk };
 }
 
-// 餐やりの種類：コイン=エサ（+1Lv・安い）/ クリスタル=ごちそう（+3Lv・速い）
+// なかま育成は「HPレベル(hpLv)」「攻撃レベル(atkLv)」を別々に持つ。
+//  ・HPレベル   … お金(コイン)で上げる
+//  ・攻撃レベル … クリスタルで上げる
+//  旧データ（単一の lv だけ）も動くよう、未設定なら lv → 両方にフォールバックする。
+/** なかま記録 e の HPレベル（旧 lv 互換） */
+export function partnerHpLv(e) {
+  return Math.max(1, e?.hpLv ?? e?.lv ?? 1);
+}
+/** なかま記録 e の 攻撃レベル（旧 lv 互換） */
+export function partnerAtkLv(e) {
+  return Math.max(1, e?.atkLv ?? e?.lv ?? 1);
+}
+
+// 育成の種類：HP=お金で +1Lv／攻撃=クリスタルで +1Lv
 export const FEED_KINDS = {
-  coin:    { id: "coin",    label: "エサ",     icon: "🍖", levels: 1 },
-  crystal: { id: "crystal", label: "ごちそう", icon: "🍰", levels: 3 },
+  hp:  { id: "hp",  label: "HPアップ",  icon: "❤️", stat: "hpLv",  levels: 1 },
+  atk: { id: "atk", label: "攻撃アップ", icon: "⚔️", stat: "atkLv", levels: 1 },
 };
 
 /**
- * 現在レベル lv の仲間を1回育てるコスト。
- *  コイン：40 + lv*30 / クリスタル：2 + floor(lv/6)（ごちそうは+3Lv）
+ * 現在レベル lv のステータスを1段階上げるコスト。
+ *  HP（お金）        ：40 + lv*30 コイン
+ *  攻撃（クリスタル）：2 + floor(lv/4) クリスタル
  * @returns {{coins:number, crystals:number, levels:number}}
  */
-export function feedCost(lv = 1, kind = "coin") {
+export function feedCost(lv = 1, kind = "hp") {
   const L = Math.max(1, lv);
-  if (kind === "crystal") {
-    return { coins: 0, crystals: 2 + Math.floor(L / 6), levels: FEED_KINDS.crystal.levels };
+  if (kind === "atk") {
+    return { coins: 0, crystals: 2 + Math.floor(L / 4), levels: FEED_KINDS.atk.levels };
   }
-  return { coins: 40 + L * 30, crystals: 0, levels: FEED_KINDS.coin.levels };
+  return { coins: 40 + L * 30, crystals: 0, levels: FEED_KINDS.hp.levels };
 }

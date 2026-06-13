@@ -47,7 +47,7 @@ import { findItem, treatCost } from "./engine/items.js";
 import { getPlayerBattleStats, BATTLE_SKILLS, battleBonuses, isCalcKingCleared, CALC_KING_CLEAR_STREAK, CALC_KING_CLEAR_CRYSTAL, findSkill, rollSkillGacha, rollSkillGachaMulti, SKILL_RARITY, SKILL_GACHA_COST_1, SKILL_GACHA_MULTI_COST, SKILL_GACHA_MULTI_N } from "./engine/battle.js";
 import { MONSTERS, findMonster } from "./data/monsters.js";
 import Partners from "./screens/Partners.jsx";
-import { feedCost, partnerMaxLevel, recruitChance, PARTY_MAX } from "./engine/partners.js";
+import { feedCost, partnerMaxLevel, recruitChance, PARTY_MAX, partnerHpLv, partnerAtkLv } from "./engine/partners.js";
 import { unitFullyStarred } from "./engine/progress.js";
 import { foldSequence } from "./engine/unitMastery.js";
 import { isUnitMonsterUnlocked } from "./engine/unlock.js";
@@ -682,21 +682,29 @@ export default function App() {
   }
 
   // なかま（おとも）を育てる：コイン/クリスタルで餐やりしてレベル+。
-  function feedPartner(monsterId, kind = "coin") {
+  // なかま育成：kind "hp"=お金でHPレベル↑ / "atk"=クリスタルで攻撃レベル↑
+  function feedPartner(monsterId, kind = "hp") {
     const mon = findMonster(monsterId);
     if (!mon) return;
     const cur = data.player.partners?.[monsterId];
     if (!cur) return; // 未捕獲は育てられない
     const maxLv = partnerMaxLevel(mon);
-    if ((cur.lv || 1) >= maxLv) return; // カンスト
-    const cost = feedCost(cur.lv || 1, kind);
+    const isAtk = kind === "atk";
+    const curLv = isAtk ? partnerAtkLv(cur) : partnerHpLv(cur);
+    if (curLv >= maxLv) return; // そのステータスはカンスト
+    const cost = feedCost(curLv, kind);
     if ((data.player.coins ?? 0) < cost.coins) return;       // コイン不足
     if ((data.player.crystals ?? 0) < cost.crystals) return; // クリスタル不足
     updatePlayer((p) => {
       const partners = { ...(p.partners || {}) };
-      const e = partners[monsterId] || { lv: 1 };
-      if ((e.lv || 1) >= maxLv) return p;
-      partners[monsterId] = { ...e, lv: Math.min(maxLv, (e.lv || 1) + cost.levels) };
+      const e = partners[monsterId] || {};
+      // 旧データ(lv のみ)から hpLv/atkLv へ移行しつつ、対象のレベルだけ +levels
+      const hpLv = partnerHpLv(e);
+      const atkLv = partnerAtkLv(e);
+      const curL = isAtk ? atkLv : hpLv;
+      if (curL >= maxLv) return p;
+      const nextL = Math.min(maxLv, curL + cost.levels);
+      partners[monsterId] = { ...e, hpLv, atkLv, [isAtk ? "atkLv" : "hpLv"]: nextL };
       return {
         ...p,
         partners,
@@ -1126,7 +1134,7 @@ export default function App() {
           const id = data.player.activePartner;
           const e = id ? data.player.partners?.[id] : null;
           const m = e ? findMonster(id) : null;
-          return m ? { monster: m, lv: e.lv || 1 } : null;
+          return m ? { monster: m, hpLv: partnerHpLv(e), atkLv: partnerAtkLv(e) } : null;
         })()}
         onResult={handleBattleResult}
         onSpChange={(sp) => updatePlayer((p) => ({ ...p, sp }))}

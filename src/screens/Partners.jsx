@@ -9,6 +9,7 @@ import MonsterSprite from "../components/MonsterSprite.jsx";
 import { findMonster } from "../data/monsters.js";
 import {
   feedCost, partnerMaxLevel, partnerTierOf, allyStats, FEED_KINDS, PARTY_MAX,
+  partnerHpLv, partnerAtkLv,
 } from "../engine/partners.js";
 
 const TIER_LABEL = { unit: "なかま", boss: "章ボス", final: "魔王" };
@@ -22,7 +23,7 @@ export default function Partners({ player, onFeed, onToggleParty, onSetActive, o
   const activeId = player.activePartner || null;
 
   const list = Object.keys(partners)
-    .map((id) => ({ id, mon: findMonster(id), lv: partners[id]?.lv || 1 }))
+    .map((id) => ({ id, mon: findMonster(id), hpLv: partnerHpLv(partners[id]), atkLv: partnerAtkLv(partners[id]) }))
     .filter((x) => x.mon);
 
   return (
@@ -47,18 +48,19 @@ export default function Partners({ player, onFeed, onToggleParty, onSetActive, o
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {list.map(({ id, mon, lv }) => {
+            {list.map(({ id, mon, hpLv, atkLv }) => {
               const tier = partnerTierOf(mon);
               const maxLv = partnerMaxLevel(mon);
-              const maxed = lv >= maxLv;
-              const st = allyStats(mon, lv);
+              const hpMaxed = hpLv >= maxLv;
+              const atkMaxed = atkLv >= maxLv;
+              const st = allyStats(mon, hpLv, atkLv);
               const inParty = party.includes(id);
               const isActive = id === activeId;
               const partyFull = party.length >= PARTY_MAX;
-              const coinCost = feedCost(lv, "coin");
-              const cryCost = feedCost(lv, "crystal");
-              const canCoin = !maxed && coins >= coinCost.coins;
-              const canCry = !maxed && crystals >= cryCost.crystals;
+              const hpCost = feedCost(hpLv, "hp");      // HPアップ＝お金
+              const atkCost = feedCost(atkLv, "atk");   // 攻撃アップ＝クリスタル
+              const canHp = !hpMaxed && coins >= hpCost.coins;
+              const canAtk = !atkMaxed && crystals >= atkCost.crystals;
               return (
                 <div key={id} className="glass" style={{ padding: "10px 12px", border: `1.5px solid ${isActive ? "#fbbf24" : inParty ? TIER_COLOR[tier] : "rgba(255,255,255,.08)"}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -71,11 +73,17 @@ export default function Partners({ player, onFeed, onToggleParty, onSetActive, o
                         <span style={{ fontSize: 9, fontWeight: 800, color: TIER_COLOR[tier], border: `1px solid ${TIER_COLOR[tier]}`, borderRadius: 999, padding: "1px 6px" }}>{TIER_LABEL[tier]}</span>
                         {isActive && <span style={{ fontSize: 9, fontWeight: 900, color: "#3a2a00", background: "#fbbf24", borderRadius: 999, padding: "1px 7px" }}>⚔️ 参戦中</span>}
                       </div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#fbbf24", marginTop: 2 }}>
-                        Lv.{lv}{maxed ? "（最大）" : ` / ${maxLv}`}　⚔️攻撃{st.atk}　❤️HP{st.maxHp}
+                      <div style={{ fontSize: 11, fontWeight: 800, marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ color: "#f87171" }}>❤️HP{st.maxHp} <span style={{ opacity: .8 }}>Lv.{hpLv}{hpMaxed ? "(最大)" : `/${maxLv}`}</span></span>
+                        <span style={{ color: "#67e8f9" }}>⚔️攻撃{st.atk} <span style={{ opacity: .8 }}>Lv.{atkLv}{atkMaxed ? "(最大)" : `/${maxLv}`}</span></span>
                       </div>
-                      <div style={{ height: 6, background: "rgba(255,255,255,.1)", borderRadius: 4, overflow: "hidden", marginTop: 5 }}>
-                        <div style={{ width: (lv / maxLv) * 100 + "%", height: "100%", background: "linear-gradient(90deg,#fbbf24,#f472b6)" }} />
+                      <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+                        <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,.1)", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: (hpLv / maxLv) * 100 + "%", height: "100%", background: "linear-gradient(90deg,#f87171,#fbbf24)" }} />
+                        </div>
+                        <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,.1)", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: (atkLv / maxLv) * 100 + "%", height: "100%", background: "linear-gradient(90deg,#22d3ee,#67e8f9)" }} />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -92,17 +100,17 @@ export default function Partners({ player, onFeed, onToggleParty, onSetActive, o
                       {isActive ? "✓ 参戦中" : "参戦させる"}
                     </button>
                   </div>
-                  {/* 育成 */}
+                  {/* 育成：HP=お金で / 攻撃=クリスタルで 別々に強化 */}
                   <div style={{ display: "flex", gap: 7, marginTop: 7 }}>
-                    <button data-sfx="none" disabled={!canCoin} onClick={() => onFeed(id, "coin")}
-                      style={{ flex: 1, padding: "8px", borderRadius: 9, border: "none", cursor: canCoin ? "pointer" : "default", fontFamily: "inherit", fontSize: 11.5, fontWeight: 900,
-                        background: canCoin ? "linear-gradient(135deg,#f59e0b,#fbbf24)" : "rgba(255,255,255,.06)", color: canCoin ? "#3a2a00" : "rgba(255,255,255,.35)" }}>
-                      {maxed ? "最大Lv" : `${FEED_KINDS.coin.icon}エサ 💰${coinCost.coins}`}
+                    <button data-sfx="none" disabled={!canHp} onClick={() => onFeed(id, "hp")}
+                      style={{ flex: 1, padding: "8px", borderRadius: 9, border: "none", cursor: canHp ? "pointer" : "default", fontFamily: "inherit", fontSize: 11.5, fontWeight: 900,
+                        background: canHp ? "linear-gradient(135deg,#f59e0b,#fbbf24)" : "rgba(255,255,255,.06)", color: canHp ? "#3a2a00" : "rgba(255,255,255,.35)" }}>
+                      {hpMaxed ? "HP最大" : `${FEED_KINDS.hp.icon}HPアップ 💰${hpCost.coins}`}
                     </button>
-                    <button data-sfx="none" disabled={!canCry} onClick={() => onFeed(id, "crystal")}
-                      style={{ flex: 1, padding: "8px", borderRadius: 9, border: "none", cursor: canCry ? "pointer" : "default", fontFamily: "inherit", fontSize: 11.5, fontWeight: 900,
-                        background: canCry ? "linear-gradient(135deg,#22d3ee,#67e8f9)" : "rgba(255,255,255,.06)", color: canCry ? "#063b44" : "rgba(255,255,255,.35)" }}>
-                      {maxed ? "最大Lv" : `${FEED_KINDS.crystal.icon}ごちそう 💎${cryCost.crystals}`}
+                    <button data-sfx="none" disabled={!canAtk} onClick={() => onFeed(id, "atk")}
+                      style={{ flex: 1, padding: "8px", borderRadius: 9, border: "none", cursor: canAtk ? "pointer" : "default", fontFamily: "inherit", fontSize: 11.5, fontWeight: 900,
+                        background: canAtk ? "linear-gradient(135deg,#22d3ee,#67e8f9)" : "rgba(255,255,255,.06)", color: canAtk ? "#063b44" : "rgba(255,255,255,.35)" }}>
+                      {atkMaxed ? "攻撃最大" : `${FEED_KINDS.atk.icon}攻撃アップ 💎${atkCost.crystals}`}
                     </button>
                   </div>
                 </div>

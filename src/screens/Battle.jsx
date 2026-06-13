@@ -15,7 +15,7 @@ import MathText from "../components/MathText.jsx";
 import * as bgm from "../audio/bgm.js";
 import * as sfx from "../audio/sfx.js";
 import { getPlayerBattleStats, calcDamage, genBattleProblem, getEquippedSkills, SP_MAX, ultimateDamage, enemyDecide, battleBonuses } from "../engine/battle.js";
-import { allyStats } from "../engine/partners.js";
+import { allyStats, partnerHpLv, partnerAtkLv } from "../engine/partners.js";
 import { findItem } from "../engine/items.js";
 import { isCorrect, playerLevel } from "../engine/scoring.js";
 
@@ -137,8 +137,8 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
   const setMonsterShieldBoth = (v) => { const n = Math.max(0, Math.round(v)); monsterShieldRef.current = n; setMonsterShield(n); };
 
   // ── アクティブ仲間モンスター（主人公とともに参戦・1体）──
-  const allyDef = ally && ally.monster ? ally : null;            // { monster, lv }
-  const allyBase = allyDef ? allyStats(allyDef.monster, allyDef.lv) : null; // { maxHp, atk }
+  const allyDef = ally && ally.monster ? ally : null;            // { monster, hpLv, atkLv }
+  const allyBase = allyDef ? allyStats(allyDef.monster, partnerHpLv(allyDef), partnerAtkLv(allyDef)) : null; // { maxHp, atk }
   const [allyHp, setAllyHp] = useState(allyBase ? allyBase.maxHp : 0);
   const allyHpRef = useRef(allyBase ? allyBase.maxHp : 0);
   const [allyOut, setAllyOut] = useState(false); // HP0で退場したか
@@ -458,19 +458,23 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
     let dmg = Math.max(1, Math.min(Math.round(scaled), Math.ceil(stats.maxHp * 0.7)));
 
     // 仲間が庇う：主人公HPが30%以下なら、生きている仲間がダメージを肩代わりする。
+    //  庇う仲間は「主人公と同じダメージ＝敵の実ダメージ」をそのまま受ける。
+    //  （主人公にかかる70%上限＝低レベルだと約40の頭打ちは、即死回避のための主人公専用。
+    //    仲間が身代わりになるときはその上限を外し、ちゃんとダメージが通るようにする。）
     if (allyBase && !allyOutRef.current && playerHpRef.current <= stats.maxHp * 0.3) {
       const aname = allyDef.monster.name;
+      const coverDmg = Math.max(1, Math.round(scaled)); // 敵の実ダメージ（上限なし）
       setShakeAns(true); setTimeout(() => setShakeAns(false), 460);
       setMonState("attack"); setAnimKey((k) => k + 1);
       if (fx) showEnemyFx(fx);
       // ref を同期的に更新してから KO 判定（setState は非同期なので ref を真として扱う）
-      const newAllyHp = Math.max(0, allyHpRef.current - dmg);
+      const newAllyHp = Math.max(0, allyHpRef.current - coverDmg);
       allyHpRef.current = newAllyHp; setAllyHp(newAllyHp);
       if (newAllyHp <= 0) {
         allyOutRef.current = true; setAllyOut(true);
         setLog(`🛡️ ${aname}が主人公をかばった！ ${aname}は たおれて退場した…`);
       } else {
-        setLog(`🛡️ ${aname}が主人公をかばった！ -${dmg}`);
+        setLog(`🛡️ ${aname}が主人公をかばった！ -${coverDmg}`);
       }
       return; // 主人公はノーダメージ
     }
