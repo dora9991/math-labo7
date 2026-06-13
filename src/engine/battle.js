@@ -5,7 +5,7 @@
 //  - 出題：モンスターの担当単元から「標準・発展」を出す
 //    ラスボスは全単元の発展のみ
 // ============================================================
-import { genProblem, makeChoices } from "./generator.js";
+import { genProblem } from "./generator.js";
 import { findUnit, findChapterById } from "../data/index.js";
 import { gearBonuses } from "./gear.js";
 import { pick } from "./rng.js";
@@ -393,7 +393,11 @@ export function genBattleProblem(monster, lastId = null, forceLevel = null) {
     const level = pick(levels);
     const q = genProblem(unit, level, lastId);
     if (q) {
-      return { ...q, unitName: unit.name, level, choices: makeChoices(q.ans) };
+      // 中2・中3は問題データが持つ式の4択(q.choices)をそのまま使う。
+      //  中1（数値）は choices を持たないので、Battle側は文字入力で受け付ける。
+      //  ※以前は makeChoices(q.ans) で上書きしていたが、文字列の答えだと選択肢が
+      //    1個に壊れる（数値用ダミー生成のため）バグがあったので廃止。
+      return { ...q, unitName: unit.name, level };
     }
   }
   return null;

@@ -4,7 +4,7 @@
 //  不正解・時間切れ → 解答欄が左右に高速で揺れる＋被ダメ（赤フラッシュ・画面揺れ）
 //  問題は単元テスト級（標準・発展）。HP0で勝敗が決まる。
 // ============================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import MonsterSprite from "../components/MonsterSprite.jsx";
 import Avatar from "../components/Avatar.jsx";
 import HeroImg from "../components/HeroImg.jsx";
@@ -20,6 +20,13 @@ import { findItem } from "../engine/items.js";
 import { isCorrect, playerLevel } from "../engine/scoring.js";
 
 const ENEMY_CHARGE_NEED = 2; // super型が超必殺を撃つまでのチャージ回数（engine ENEMY_AI.super と一致）
+
+// 中2・中3は答えが「式」の4択（文字列一致）、中1は数値（isCorrect）。SlowMode/TimeAttackと同じ判定方式に揃える。
+const shuffle = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+const hasChoices = (q) => Array.isArray(q?.choices) && q.choices.length > 0;
+const ansEq = (val, q) => (hasChoices(q)
+  ? String(val).replace(/\s/g, "") === String(q.ans).replace(/\s/g, "")
+  : isCorrect(val, q.ans));
 
 export default function Battle({ player, monster, ally = null, onResult, onSpChange, onItemUse, onUseBait, onHpChange, onWinBonus, onExit, onMistake }) {
   const lv = playerLevel(player); // 現在ワールド（学年）のレベルでバトル能力が決まる
@@ -47,7 +54,9 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
   const [regen, setRegen] = useState(null); // 継続回復 { turns, pct }（リジェネ）
   const equipped = getEquippedSkills(player); // 装備中スキル（スロット1/2）
   const [phase, setPhase] = useState("intro"); // intro | fight | win | lose
-  const [input, setInput] = useState("");      // 文字入力の答え
+  const [input, setInput] = useState("");      // 文字入力の答え（数値問題＝中1用）
+  // 式の4択（中2・中3）はシャッフルした選択肢を問題ごとに1回だけ作る
+  const choices = useMemo(() => (q && hasChoices(q) ? shuffle([...q.choices]) : null), [q]);
   const [locked, setLocked] = useState(false);
   const [monState, setMonState] = useState("idle");
   const [animKey, setAnimKey] = useState(0);
@@ -678,7 +687,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
   function answer(val) {
     if (locked || phaseRef.current !== "fight" || !q || val === "" || val == null) return;
     setLocked(true); lockedRef.current = true;
-    const ok = isCorrect(val, q.ans);
+    const ok = ansEq(val, q);
 
     if (ok) {
       sfx.correct();
@@ -936,16 +945,34 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
               ) : (
                 <div className="bt-q-text"><MathText>{q.q}</MathText></div>
               )}
-              <div className={"ans-row" + (shakeAns ? " answer-shake" : "")}>
-                <input
-                  ref={inputRef} className="ans-in" type="text" inputMode="text" value={input}
-                  disabled={locked}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") answer(input); }}
-                  placeholder="例: -5 や 1/2"
-                />
-                <button className="ok-btn" data-sfx="none" disabled={locked || input === ""} onClick={() => answer(input)}>⚔️</button>
-              </div>
+              {choices ? (
+                /* 中2・中3：式の4択ボタン（文字列一致で採点） */
+                <div className={"bt-choices" + (shakeAns ? " answer-shake" : "")} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                  {choices.map((c, i) => (
+                    <button
+                      key={i} className="bt-choice" data-sfx="none" disabled={locked}
+                      onClick={() => answer(c)}
+                      style={{
+                        padding: "12px 10px", borderRadius: 12, border: "2px solid rgba(255,255,255,.18)",
+                        background: "rgba(255,255,255,.08)", color: "#f1f5f9", fontWeight: 800, fontSize: 16,
+                        cursor: locked ? "default" : "pointer", fontFamily: "inherit",
+                      }}
+                    ><MathText>{c}</MathText></button>
+                  ))}
+                </div>
+              ) : (
+                /* 中1：数値は文字入力 */
+                <div className={"ans-row" + (shakeAns ? " answer-shake" : "")}>
+                  <input
+                    ref={inputRef} className="ans-in" type="text" inputMode="text" value={input}
+                    disabled={locked}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") answer(input); }}
+                    placeholder="例: -5 や 1/2"
+                  />
+                  <button className="ok-btn" data-sfx="none" disabled={locked || input === ""} onClick={() => answer(input)}>⚔️</button>
+                </div>
+              )}
             </>
           ) : <div style={{ color: "#cceebb" }}>問題を準備中…</div>}
         </div>
