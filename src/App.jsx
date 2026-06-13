@@ -237,19 +237,40 @@ export default function App() {
   }
 
   // じっくりモードのクリア結果を保存
-  function saveSlowResult({ chapter, unit, level, streak, total, correct, xp }) {
+  function saveSlowResult({ chapter, unit, level, streak, total, correct, xp, anshin = false, results = [] }) {
+    const sid = data.player.studentId;
     store.addRecord(makeRecord({
-      studentId: data.player.studentId, mode: "slow",
+      studentId: sid, mode: "slow",
       chapterId: chapter.id, unitId: unit.id, level,
       correct, wrong: total - correct, xp, maxStreak: streak,
     }));
-    // くり返しXP用の履歴を更新（じっくりは到達＝クリア）
+    // ★あんしんモードの進行貢献（救済）：クリアした単元に easy★1 を自動付与する。
+    //   ・既存の星は下げない（Math.max）。付与するのは easy★1 のみなので、章ボス／魔王に
+    //     必要な「ふつう・発展」の星はタイムアタック等で正規に取る必要があり、バランスは保たれる。
+    //   ・これで苦手な子も「あんしんで遊ぶ→その単元のモンスターが解放される」進行実感が得られる。
+    const rescueKey = `${unit.id}-easy`;
+    // くり返しXP用の履歴を更新（じっくり／あんしんは到達＝クリア）＋あんしんなら救済★
     updatePlayer((p) => {
       const key = `${unit.id}-${level}`;
-      return { ...p, playLog: { ...(p.playLog || {}), [key]: { cleared: true, lastDate: todayStr() } } };
+      const next = { ...p, playLog: { ...(p.playLog || {}), [key]: { cleared: true, lastDate: todayStr() } } };
+      if (anshin) next.stars = { ...p.stars, [rescueKey]: Math.max(p.stars?.[rescueKey] || 0, 1) };
+      return next;
     });
-    setData((d) => ({ ...d, records: store.load().records }));
+    // 間違いを学び直しノートへ（あんしん／じっくり両方。直近3問まで＝タイムアタックと同じ扱い）
+    const mistakes = (results || []).filter((r) => !r.ok).slice(0, 3).map((r) =>
+      makeMistake({ studentId: sid, chapterId: chapter.id, unitId: r.unitId || unit.id, level: r.level || level, q: r.q, ans: r.ans })
+    );
+    const newMistakes = store.addMistakes(mistakes);
+    setData((d) => ({ ...d, records: store.load().records, mistakes: newMistakes }));
     addXp(xp);
+    // あんしんで★1が新たに付き、その単元のモンスターが解放されたら「新しい敵」を通知する
+    if (anshin) {
+      const monster = MONSTERS.find((m) => m.kind === "unit" && m.unitId === unit.id);
+      if (monster && !isUnitMonsterUnlocked(data.player, monster)) {
+        markMonstersSeen([monster.id]);
+        setTimeout(() => setNewMonster(monster), 900);
+      }
+    }
   }
 
   // 困り感クリニックの結果を保存（誤答ノート＋記録＋XP、卒業フラグ）
@@ -296,11 +317,13 @@ export default function App() {
   }
 
   // バトルで間違えた問題を「学び直しモード」に記録（同じ問題文は重複させない・最大40件）
-  function recordBattleMistake({ q, ans, unitId, level }) {
+  // バトル／チャレンジ（計算王）など、解いている途中の誤答を学び直しノートへ送る共通処理。
+  //  chapterId を渡せばそれを使い、無ければ unitId から章を逆引きする。
+  function recordWrongAnswer({ q, ans, unitId, level, chapterId = null }) {
     if (!q) return;
-    const ch = findChapterByUnitId(unitId);
+    const ch = chapterId || findChapterByUnitId(unitId)?.id || null;
     const newMistakes = store.addMistakes([
-      makeMistake({ studentId: data.player.studentId, chapterId: ch?.id || null, unitId: unitId || null, level: level || null, q, ans }),
+      makeMistake({ studentId: data.player.studentId, chapterId: ch, unitId: unitId || null, level: level || null, q, ans }),
     ]);
     setData((d) => ({ ...d, mistakes: newMistakes }));
   }
@@ -608,11 +631,13 @@ export default function App() {
     });
   }
 
-  // バトルの結果。true=勝利, false=敗北, "retry"=やり直し
-  function handleBattleResult(outcome) {
+  // バトルの結果。true=勝利, false=敗北, "retry"=やり直し。stats={correct,wrong}（学習記録用）
+  function handleBattleResult(outcome, stats = {}) {
     if (outcome === "retry") { setBattleKey((k) => k + 1); return; }
     if (!battleMonster) return;
     const win = outcome === true;
+    const correct = stats.correct || 0;
+    const wrong = stats.wrong || 0;
     // この勝利より前に同じモンスターを倒したことがあるか
     const alreadyCleared = (data.records || []).some(
       (r) => r.mode === "battle" && r.extra && r.extra.result === "win" && r.extra.monsterId === battleMonster.id
@@ -621,6 +646,8 @@ export default function App() {
     const gained = win ? (alreadyCleared ? Math.ceil(battleMonster.reward / 2) : battleMonster.reward) : 0;
     store.addRecord(makeRecord({
       studentId: data.player.studentId, mode: "battle",
+      chapterId: battleMonster.chapterId ?? null, unitId: battleMonster.unitId ?? null,
+      correct, wrong, // ★学習記録（日々の解答数・正解数）にバトルも反映
       xp: gained,
       extra: { monsterId: battleMonster.id, result: win ? "win" : "lose" },
     }));
@@ -1012,6 +1039,7 @@ export default function App() {
         player={data.player}
         chapter={calcChapter}
         onResult={recordCalcKing}
+        onMistake={(m) => recordWrongAnswer({ ...m, chapterId: calcChapter?.id || null })}
         onBack={() => setScreen("calcKingPick")}
         onHome={() => setScreen("home")}
       />
@@ -1106,7 +1134,7 @@ export default function App() {
         onUseBait={markBaitUsed}
         onHpChange={(hp) => updatePlayer((p) => ({ ...p, currentHp: hp }))}
         onWinBonus={applyWinBonus}
-        onMistake={recordBattleMistake}
+        onMistake={recordWrongAnswer}
         onExit={() => setBattleMonster(null)}
       />
     );

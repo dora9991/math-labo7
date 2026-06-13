@@ -10,7 +10,7 @@
 //    ・正解の累計で階段が進む（連続でなくてOK）→ 必ず達成できる
 //    ・やさしい言葉かけ（「おしい！」）
 // ============================================================
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Header from "../components/Header.jsx";
 import CharBubble, { voice } from "../components/CharBubble.jsx";
 import { BigWord } from "../components/Decorations.jsx";
@@ -46,6 +46,7 @@ export default function SlowMode({ player, chapter, unit, level, anshin = false,
   const [shakeAns, setShakeAns] = useState(false);
   const [phase, setPhase] = useState("intro"); // intro | playing | clear
   const [clearInfo, setClearInfo] = useState(null); // {xp, baseXp, mult}
+  const wrongsRef = useRef([]); // この回の誤答 {q,ans,unitId,level,ok:false}（学び直しへ送る）
 
   // あんしんモードでは「できた！の階段」＝正解の累計。それ以外は連続正解。
   const progress = anshin ? correct : streak;
@@ -86,12 +87,15 @@ export default function SlowMode({ player, chapter, unit, level, anshin = false,
         setMsg(voice("clear"));
         setTimeout(() => {
           setPhase("clear");
-          onComplete({ chapter, unit, level, streak: ns, total: total + 1, correct: nc, xp, results: [] });
+          // anshin と誤答リストを渡す（学び直しへの登録／あんしんの進行貢献＝easy★1付与に使う）
+          onComplete({ chapter, unit, level, streak: ns, total: total + 1, correct: nc, xp, anshin, results: wrongsRef.current });
         }, 700);
       } else {
         setTimeout(nextQuestion, 800);
       }
     } else {
+      // 間違えた問題を学び直しへ送るため記録（あんしん／じっくり両方）
+      wrongsRef.current.push({ q: q.q, ans: q.ans, unitId: q.unitId, level: q.level, ok: false });
       // ★1 あんしんモードは失敗で階段が減らない（やさしい言葉かけ）
       if (!anshin) setStreak(0);
       sfx.wrong();

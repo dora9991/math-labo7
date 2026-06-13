@@ -29,7 +29,7 @@ function answerMatches(input, ans) {
   return norm(input) === norm(ans);
 }
 
-export default function Challenge({ player, chapter, onResult, onBack, onHome }) {
+export default function Challenge({ player, chapter, onResult, onMistake, onBack, onHome }) {
   // 自己ベスト（その単元の開始時点の値を保持。結果画面で「新記録」判定に使う）
   const [best] = useState(() => {
     const ck = (player.calcKing && chapter && player.calcKing[chapter.id]) || {};
@@ -100,12 +100,14 @@ export default function Challenge({ player, chapter, onResult, onBack, onHome })
     } else if (practice) {
       // ★3 練習王：終わらない。正解を見せて、連続をリセットして次へ。
       sfx.wrong();
+      onMistake?.({ q: cur.q, ans: cur.ans, unitId: cur.unitId, level: cur.level }); // 誤答を学び直しへ
       setWrongFb({ ans: cur.ans });
       setStreak(0);
       setTimeout(() => { setWrongFb(null); nextProblem(); }, 1300);
     } else {
       // 本番：1問でも間違えたら終了
       sfx.wrong();
+      onMistake?.({ q: cur.q, ans: cur.ans, unitId: cur.unitId, level: cur.level }); // 誤答を学び直しへ
       end(streak, time5);
     }
   }

@@ -72,6 +72,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
   const lockedRef = useRef(false);
   const phaseRef = useRef("intro");
   const endedRef = useRef(false); // 勝敗確定の二重発火を防ぐ
+  const tallyRef = useRef({ correct: 0, wrong: 0 }); // 学習記録用：このバトルの正解/不正解（時間切れ含む）数
   const atkBuffRef = useRef(null); // 攻撃バフ { turns, mult }（setTimeout経由でも正しく参照）
   const guardBuffRef = useRef(null); // 防御バフ { turns, reduce }
   const regenRef = useRef(null); // 継続回復 { turns, pct }
@@ -409,7 +410,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
     });
     setDeadParticles(parts);
     setLog(`${monster.name} をたおした！✨ +${monster.reward}XP`);
-    setTimeout(() => onResult(true), 1500);
+    setTimeout(() => onResult(true, { ...tallyRef.current }), 1500);
   }
 
   function triggerLose() {
@@ -429,7 +430,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
     setPhase("lose"); phaseRef.current = "lose";
     bgm.play("defeat", { loop: false });
     setLog("あなたはたおれてしまった…💀");
-    setTimeout(() => onResult(false), 1200);
+    setTimeout(() => onResult(false, { ...tallyRef.current }), 1200);
   }
 
   // 敵の演出を中央に一瞬出す
@@ -681,6 +682,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
 
     if (ok) {
       sfx.correct();
+      tallyRef.current.correct++; // 学習記録：正解数
       const sealed = !!comboSealRef.current;        // コンボ封じ中はコンボが伸びない
       const newCombo = sealed ? 0 : combo + 1;
       setCombo(newCombo);
@@ -741,6 +743,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
       });
     } else {
       sfx.wrong();
+      tallyRef.current.wrong++; // 学習記録：不正解数
       // 間違えた問題を「学び直しモード」へ記録（バトルの誤答も復習対象に）
       onMistake?.({ q: q.q, ans: q.ans, unitId: q.unitId, level: q.level });
       enemyTurn(`不正解…(正解 ${q.ans})`);
@@ -753,6 +756,7 @@ export default function Battle({ player, monster, ally = null, onResult, onSpCha
     if (lockedRef.current || phaseRef.current !== "fight") return;
     setLocked(true); lockedRef.current = true;
     sfx.wrong();
+    tallyRef.current.wrong++; // 学習記録：時間切れも不正解として数える
     if (q) onMistake?.({ q: q.q, ans: q.ans, unitId: q.unitId, level: q.level }); // 時間切れも学び直しへ
     enemyTurn("⏰時間切れ！");
     setTimeout(() => { if (phaseRef.current === "fight") { setMonState("idle"); nextQuestion(); } }, 850);
